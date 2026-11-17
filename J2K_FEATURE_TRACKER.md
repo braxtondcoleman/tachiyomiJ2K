@@ -9,10 +9,10 @@ Development happens on feature branches. **Do not install over the original J2K 
 | F02 | High | Bounded retries for transient chapter-update failures | Implemented; needs build/device validation | Two retries, 2s then 4s; IOException, HTTP 408 and HTTP 5xx only; no HTTP 429 retry |
 | F03 | High | Persist manually selected manga IDs across process restart | Implemented; needs build/device validation | Stored in WorkManager Data, in batches of 256; **additional titles injected into a running job remain in-memory** |
 | F04 | Medium | Protect concurrent update-result maps | Implemented; needs build/device validation | ConcurrentHashMap for new, failed, and skipped items |
-| F05 | Medium | In-app persistent update report (independent of notification settings) | Planned | Later UI feature |
+| F05 | Medium | In-app history of last five update runs and share action | Implemented; needs build/device validation | Settings → Library → Global updates → Library update history |
 | F06 | Medium | Per-title chapter update overrides | Planned | Separate from Samsung Auto Blocker |
 | F07 | High | Fix Samsung source extension APK install friction | Deferred | Test J2K's existing Private installer first |
-| F08 | High | Separate package name, durable signing, repeatable Android builds | Planned | Needed for safe side-by-side testing and upgrades |
+| F08 | High | Separate package name and repeatable signed Android builds | Implemented in code; signing secrets and device tests still required | Custom app IDs, no upstream updater, manual signed release workflow; never commit keystore |
 | F09 | Medium | Automatic duplicate/source health analysis | Planned | Preserve reading progress |
 | F10 | Later | Integrated recommendations and AI | Planned | Inside the reader, not a companion app |
 

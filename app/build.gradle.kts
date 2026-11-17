@@ -58,19 +58,37 @@ android {
         }
     }
 
+    // A custom signed release is only enabled when a user-owned key is supplied
+    // through environment variables; the key and passwords are never committed.
+    signingConfigs {
+        if (!System.getenv("J2K_RELEASE_KEYSTORE").isNullOrBlank()) {
+            create("customRelease") {
+                storeFile = file(System.getenv("J2K_RELEASE_KEYSTORE"))
+                storePassword = System.getenv("J2K_STORE_PASSWORD")
+                keyAlias = System.getenv("J2K_KEY_ALIAS")
+                keyPassword = System.getenv("J2K_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".debugJ2K"
+            // Different from both upstream J2K and our custom signed release app.
+            applicationIdSuffix = ".customj2k.debug"
             versionNameSuffix = "-d${getCommitCount()}"
         }
         getByName("release") {
-            applicationIdSuffix = ".j2k"
+            applicationIdSuffix = ".customj2k"
+            if (!System.getenv("J2K_RELEASE_KEYSTORE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("customRelease")
+            }
             isShrinkResources = true
             isMinifyEnabled = true
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
         }
         create("beta") {
             initWith(getByName("release"))
+            applicationIdSuffix = ".customj2k.beta"
             buildConfigField("boolean", "BETA", "true")
             versionNameSuffix = "-b${getBetaCount()}"
         }
@@ -91,7 +109,8 @@ android {
 
     productFlavors {
         create("standard") {
-            buildConfigField("Boolean", "INCLUDE_UPDATER", "true")
+            // Upstream update checks would download incompatible Jays2Kings APKs.
+            buildConfigField("Boolean", "INCLUDE_UPDATER", "false")
         }
         create("dev") {
             // androidResources.localeFilters is shared across all product flavors rather than
