@@ -20,6 +20,15 @@ Development happens on feature branches. **Do not install over the original J2K 
 
 Successful PR builds upload `J2K-Custom-Test-APK` under the GitHub Actions run's **Artifacts** section. On Android, download the ZIP from the run, extract `J2K-Custom-Test.apk`, and install it. The debug package is `eu.kanade.tachiyomi.customj2k.debug`, so it will not replace your original reader. This is a test build with GitHub's ephemeral debug signing certificate; **future test builds may not update in place**. Use the dedicated signed-release workflow and a stable personal keystore for lasting installs. Samsung Auto Blocker may need to be temporarily disabled to approve the install; do not work around device security.
 
+## New research and engineering priorities
+
+| ID | Priority | Change | Status | Notes |
+| --- | --- | --- | --- | --- |
+| F11 | High | **Multiple source titles combined into one manga** | Research/design complete; not implemented | TachiyomiSY reference in [SY_MULTI_SOURCE_PORT.md](SY_MULTI_SOURCE_PORT.md); needs J2K-native SQLite/reader/backup integration |
+| F12 | High | Extension installer queue concurrency and zero-items guard | Identified; not fixed | Regular mutable lists + installed++ are accessed by parallel installs; requests.first() on empty |
+| F13 | Medium | Backup verification before merges | Identified; not fixed | Auto-backups already exist; add pre-merge backup check and restore tests |
+| F14 | Medium | Improved alias-aware duplicate detection | Identified; not fixed | Avoid false positives for similar names; handle translations/aliases |
+
 ## QA checklist for F01–F04
 
 - [ ] CI compiles the modified Android app (original build failed due to missing FlexibleAdapter artifacts; retry underway)
