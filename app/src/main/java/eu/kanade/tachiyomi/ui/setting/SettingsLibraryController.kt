@@ -1,9 +1,11 @@
 package eu.kanade.tachiyomi.ui.setting
 
+import android.content.Intent
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Category
+import eu.kanade.tachiyomi.data.library.LibraryUpdateHistory
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
@@ -21,6 +23,7 @@ import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
+import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -203,6 +206,38 @@ class SettingsLibraryController : SettingsController() {
                     titleRes = R.string.auto_refresh_covers
                     summaryRes = R.string.auto_refresh_covers_summary
                     defaultValue = true
+                }
+                preference {
+                    key = "library_update_history"
+                    isPersistent = false
+                    titleRes = R.string.library_update_history
+                    summaryRes = R.string.library_update_history_summary
+                    onClick {
+                        val report = LibraryUpdateHistory.read(context)
+                        context.materialAlertDialog()
+                            .setTitle(R.string.library_update_history)
+                            .setMessage(
+                                LibraryUpdateHistory.preview(context).ifBlank {
+                                    context.getString(R.string.library_update_history_empty)
+                                },
+                            )
+                            .setNeutralButton(R.string.library_update_history_share) { _, _ ->
+                                if (report.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, report)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(
+                                            intent,
+                                            context.getString(R.string.library_update_history_share),
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                }
+                            }
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
                 }
             }
         }
