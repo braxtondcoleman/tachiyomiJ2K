@@ -46,6 +46,14 @@ object SmartSourceFinder {
         preferences: PreferencesHelper,
         db: DatabaseHelper,
     ): Report = coroutineScope {
+        // Alternate names are advisory search aliases, not verified merge identities.
+        val alternateTitles = AlternativeTitles.fromDescription(original.originalDescription).take(8)
+        fun matchScore(title: String): Int =
+            maxOf(
+                titleScore(original.originalTitle, title),
+                alternateTitles.maxOfOrNull { titleScore(it, title) } ?: 0,
+            )
+
         val enabledLang = preferences.enabledLanguages().get()
         val pinned = preferences.pinnedCatalogues().get()
         val hidden = preferences.hiddenSources().get()
@@ -72,7 +80,7 @@ object SmartSourceFinder {
         val sem = Semaphore(4)
         val failures = java.util.concurrent.atomic.AtomicInteger(0)
 
-        val found = sources.map { source ->
+        val found = sources.mapIndexed { sourceIndex, source ->
             async(Dispatchers.IO) {
                 sem.withPermit {
                     try {
@@ -83,8 +91,25 @@ object SmartSourceFinder {
                             failures.incrementAndGet()
                             return@withPermit emptyList()
                         }
-                        page.mangas.take(12).mapNotNull { entry ->
-                            val matchScore = titleScore(original.originalTitle, entry.title)
+                        // Some sources index the same manga under a translated title.
+                        // Only the first eight sources get one additional query, and only
+                        // if the normal search yielded no plausible title match.
+                        val alias = alternateTitles.firstOrNull()
+                        val fallback =
+                            if (sourceIndex < 8 && alias != null &&
+                                page.mangas.none { matchScore(it.title) >= 48 }
+                            ) {
+                                withTimeoutOrNull(8_000) {
+                                    source.getSearchManga(1, alias, FilterList()).mangas.take(12)
+                                }.orEmpty()
+                            } else {
+                                emptyList()
+                            }
+                        (page.mangas.take(12) + fallback)
+                            .distinctBy { it.url }
+                            .take(20)
+                            .mapNotNull { entry ->
+                            val matchScore = matchScore(entry.title)
                             if (matchScore < 48 || entry.url.isBlank()) return@mapNotNull null
 
                             val authorScore =
@@ -110,7 +135,7 @@ object SmartSourceFinder {
                                 score,
                                 known?.totalChapters,
                                 buildString {
-                                    append(if (matchScore >= 90) "Exact title" else "Similar title")
+                                    append(if (matchScore >= 90) "Exact title or alias" else "Similar title")
                                     if (health?.needsAttention == true) append("; recent update failures")
                                     if (known != null) append("; already in library")
                                 },
