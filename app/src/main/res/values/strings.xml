@@ -1274,4 +1274,8 @@
     <string name="view_chapters">View chapters</string>
     <string name="warning">Warning</string>
     <string name="wifi">Wi-Fi</string>
+    <string name="library_update_history">Library update history</string>
+    <string name="library_update_history_summary">See recent checks, new chapters, skips, and errors</string>
+    <string name="library_update_history_empty">No library updates recorded yet. Run a chapter update to populate this history.</string>
+    <string name="library_update_history_share">Share full history</string>
 </resources>
