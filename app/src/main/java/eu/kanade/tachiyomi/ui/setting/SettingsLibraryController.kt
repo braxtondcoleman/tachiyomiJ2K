@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.library.LibraryUpdateHistory
+import eu.kanade.tachiyomi.data.library.SmartSourceFinder
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
@@ -85,12 +86,32 @@ class SettingsLibraryController : SettingsController() {
                         // A manga in multiple categories appears several times in the DB query.
                         // Count its ID only once so category membership isn't mistaken for a duplicate.
                         val uniqueManga = db.getLibraryMangas().executeAsBlocking().distinctBy { it.id }
-                        val groups =
-                            uniqueManga
-                                .groupBy { manga -> manga.title.lowercase().filter { it.isLetterOrDigit() } }
-                                .filter { (normalized, entries) -> normalized.isNotBlank() && entries.size > 1 }
-                                .values
-                                .sortedBy { it.first().title }
+                        // Match original titles or personalized names, rejecting conflicting
+                        // author names when known. This remains advisory: never delete on a match.
+                        val possibleGroups = mutableListOf<MutableList<eu.kanade.tachiyomi.data.database.models.LibraryManga>>()
+                        uniqueManga.forEach { candidate ->
+                            if (candidate.originalTitle.isBlank()) return@forEach
+                            val match = possibleGroups.firstOrNull { group ->
+                                group.any { existing ->
+                                    existing.source != candidate.source &&
+                                        (
+                                            SmartSourceFinder.titleScore(existing.originalTitle, candidate.originalTitle) >= 93 ||
+                                                SmartSourceFinder.titleScore(existing.title, candidate.title) >= 95
+                                        ) &&
+                                        (
+                                            existing.originalAuthor.isNullOrBlank() ||
+                                                candidate.originalAuthor.isNullOrBlank() ||
+                                                SmartSourceFinder.titleScore(existing.originalAuthor!!, candidate.originalAuthor!!) >= 80
+                                        )
+                                }
+                            }
+                            if (match == null) {
+                                possibleGroups.add(mutableListOf(candidate))
+                            } else {
+                                match.add(candidate)
+                            }
+                        }
+                        val groups = possibleGroups.filter { it.size > 1 }.sortedBy { it.first().title }
 
                         val report =
                             if (groups.isEmpty()) {
