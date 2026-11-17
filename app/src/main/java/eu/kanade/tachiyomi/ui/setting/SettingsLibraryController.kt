@@ -110,7 +110,7 @@ class SettingsLibraryController : SettingsController() {
 
                         context.materialAlertDialog()
                             .setTitle(R.string.library_duplicate_finder)
-                            .setMessage(report.take(12_000) + if (report.length > 12_000) "\\n\\n(Share for full results.)" else "")
+                            .setMessage(report.take(12_000) + if (report.length > 12_000) "\n\n(Share for full results.)" else "")
                             .setNeutralButton(R.string.library_duplicate_finder_share) { _, _ ->
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"

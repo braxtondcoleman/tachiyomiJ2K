@@ -8,6 +8,7 @@ This repository is a personal, modified fork of TachiyomiJ2K. It retains upstrea
 - This fork's release app uses `eu.kanade.tachiyomi.customj2k` and can coexist with the original.
 - Debug builds use `eu.kanade.tachiyomi.customj2k.debug`, and beta builds use `eu.kanade.tachiyomi.customj2k.beta`.
 - The upstream in-app APK updater is disabled in the custom standard flavor so it will not offer APKs with incompatible package IDs or signing keys.
+- Upstream Firebase Analytics, Crashlytics, and Google Services build integration are removed from this fork. The original google-services.json no longer registers this app; do not reuse upstream credentials.
 - Use a new J2K backup when restoring reading history into the custom app; don't uninstall your original.
 - **Samsung Auto Blocker may still block manual APK installs/updates** outside approved stores. This fork does not attempt to circumvent device security.
 
