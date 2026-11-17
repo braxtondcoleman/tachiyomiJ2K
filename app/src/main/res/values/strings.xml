@@ -1278,4 +1278,8 @@
     <string name="library_update_history_summary">See recent checks, new chapters, skips, and errors</string>
     <string name="library_update_history_empty">No library updates recorded yet. Run a chapter update to populate this history.</string>
     <string name="library_update_history_share">Share full history</string>
+    <string name="library_duplicate_finder">Possible duplicates</string>
+    <string name="library_duplicate_finder_summary">Find repeated manga across sources without changing reading progress</string>
+    <string name="library_duplicate_finder_empty">No duplicate titles found in your library.</string>
+    <string name="library_duplicate_finder_share">Share duplicate list</string>
 </resources>

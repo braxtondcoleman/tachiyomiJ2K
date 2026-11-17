@@ -13,7 +13,7 @@ Development happens on feature branches. **Do not install over the original J2K 
 | F06 | Medium | Per-title chapter update overrides | Planned | Separate from Samsung Auto Blocker |
 | F07 | High | Fix Samsung source extension APK install friction | Deferred | Test J2K's existing Private installer first |
 | F08 | High | Separate package name and repeatable signed Android builds | Implemented in code; signing secrets and device tests still required | Custom app IDs, no upstream updater, manual signed release workflow; never commit keystore |
-| F09 | Medium | Automatic duplicate/source health analysis | Planned | Preserve reading progress |
+| F09 | Medium | Possible duplicates report in Library settings | Implemented read-only; needs build/device validation | Groups titles across sources, displays per-copy read/unread counts; no automatic merging |
 | F10 | Later | Integrated recommendations and AI | Planned | Inside the reader, not a companion app |
 
 ## QA checklist for F01–F04
