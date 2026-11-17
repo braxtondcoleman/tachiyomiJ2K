@@ -115,6 +115,9 @@ class LibraryUpdateJob(
     // List containing skipped updates
     private val skippedUpdates = ConcurrentHashMap<Manga, String>()
 
+    // Successful checks, including those without any new chapters.
+    private val checkedUpdates = ConcurrentHashMap<Manga, Int>()
+
     // IDs of manga whose details were already refreshed alongside their chapter update
     private val detailsRefreshedMangaIds = ConcurrentHashMap.newKeySet<Long>()
 
@@ -385,7 +388,10 @@ class LibraryUpdateJob(
                 runExtensionUpdatesAfter = false
             }
         }
+        // Persist an in-app report even if update notifications are disabled.
+        LibraryUpdateHistory.record(context, checkedUpdates, failedUpdates, skippedUpdates)
         newUpdates.clear()
+        checkedUpdates.clear()
         detailsRefreshedMangaIds.clear()
         if (skippedUpdates.isNotEmpty() && Notifications.isNotificationChannelEnabled(context, Notifications.CHANNEL_LIBRARY_SKIPPED)) {
             val skippedFile =
@@ -509,6 +515,7 @@ class LibraryUpdateJob(
                         sendUpdate(manga.id)
                     }
                 }
+                checkedUpdates[manga] = newUpdates[manga]?.size ?: 0
                 return@coroutineScope hasDownloads
             } catch (e: Exception) {
                 if (e !is CancellationException) {
