@@ -16,6 +16,10 @@ Development happens on feature branches. **Do not install over the original J2K 
 | F09 | Medium | Possible duplicates report in Library settings | Implemented read-only; needs build/device validation | Groups titles across sources, displays per-copy read/unread counts; no automatic merging |
 | F10 | Later | Integrated recommendations and AI | Planned | Inside the reader, not a companion app |
 
+## Quick phone APK test
+
+Successful PR builds upload `J2K-Custom-Test-APK` under the GitHub Actions run's **Artifacts** section. On Android, download the ZIP from the run, extract `J2K-Custom-Test.apk`, and install it. The debug package is `eu.kanade.tachiyomi.customj2k.debug`, so it will not replace your original reader. This is a test build with GitHub's ephemeral debug signing certificate; **future test builds may not update in place**. Use the dedicated signed-release workflow and a stable personal keystore for lasting installs. Samsung Auto Blocker may need to be temporarily disabled to approve the install; do not work around device security.
+
 ## QA checklist for F01–F04
 
 - [ ] CI compiles the modified Android app (original build failed due to missing FlexibleAdapter artifacts; retry underway)
