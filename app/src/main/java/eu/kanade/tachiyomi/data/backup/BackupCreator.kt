@@ -104,6 +104,7 @@ class BackupCreator(
         }
 
         var file: UniFile? = null
+        var autoBackupDir: UniFile? = null
         try {
             file = (
                 if (isAutoBackup) {
@@ -111,14 +112,9 @@ class BackupCreator(
                     var dir = UniFile.fromUri(context, uri)
                     dir = dir.createDirectory("automatic")
 
-                    // Delete older backups
-                    val numberOfBackups = preferences.numberOfBackups().get()
-                    dir
-                        .listFiles { _, filename -> Backup.filenameRegex.matches(filename) }
-                        .orEmpty()
-                        .sortedByDescending { it.name }
-                        .drop(numberOfBackups - 1)
-                        .forEach { it.delete() }
+                    // Keep existing backups until the new one is written and validated.
+                    // Otherwise a failed write can delete the only known-good recovery.
+                    autoBackupDir = dir
 
                     // Create new file to place backup
                     dir.createFile(Backup.getBackupFilename())
@@ -148,8 +144,22 @@ class BackupCreator(
                 .use { it.write(byteArray) }
             val fileUri = file.uri
 
-            // Make sure it's a valid backup file
+            // Verify the new backup BEFORE pruning older copies.
             BackupFileValidator().validate(context, fileUri)
+
+            if (isAutoBackup) {
+                val keep = preferences.numberOfBackups().get().coerceAtLeast(1)
+                autoBackupDir
+                    ?.listFiles { _, filename -> Backup.filenameRegex.matches(filename) }
+                    .orEmpty()
+                    .sortedByDescending { it.name }
+                    .drop(keep)
+                    .forEach { old ->
+                        if (old.uri != fileUri && !old.delete()) {
+                            Timber.w("Could not prune old backup: ${old.name}")
+                        }
+                    }
+            }
 
             return fileUri.toString()
         } catch (e: Exception) {
