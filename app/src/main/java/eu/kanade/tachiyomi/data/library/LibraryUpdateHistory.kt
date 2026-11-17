@@ -38,10 +38,10 @@ object LibraryUpdateHistory {
                     appendLine("${if (count > 0) "NEW ($count)" else "OK"} - ${label(manga)}")
                 }
                 failed.entries.sortedBy { it.key.title }.forEach { (manga, reason) ->
-                    appendLine("FAILED - ${label(manga)} - ${reason.replace('\\n', ' ').take(250)}")
+                    appendLine("FAILED - ${label(manga)} - ${reason.replace('\n', ' ').take(250)}")
                 }
                 skipped.entries.sortedBy { it.key.title }.forEach { (manga, reason) ->
-                    appendLine("SKIPPED - ${label(manga)} - ${reason.replace('\\n', ' ').take(250)}")
+                    appendLine("SKIPPED - ${label(manga)} - ${reason.replace('\n', ' ').take(250)}")
                 }
             }.trimEnd()
 
@@ -80,5 +80,5 @@ object LibraryUpdateHistory {
     }
 
     private fun label(manga: Manga): String =
-        "${manga.title.replace('\\n', ' ').take(180)} (source ${manga.source})"
+        "${manga.title.replace('\n', ' ').take(180)} (source ${manga.source})"
 }
