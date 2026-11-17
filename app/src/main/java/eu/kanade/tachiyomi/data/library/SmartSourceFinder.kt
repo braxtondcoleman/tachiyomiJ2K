@@ -84,8 +84,8 @@ object SmartSourceFinder {
                             return@withPermit emptyList()
                         }
                         page.mangas.take(12).mapNotNull { entry ->
-                            val titleScore = titleScore(original.originalTitle, entry.title)
-                            if (titleScore < 48 || entry.url.isBlank()) return@mapNotNull null
+                            val matchScore = titleScore(original.originalTitle, entry.title)
+                            if (matchScore < 48 || entry.url.isBlank()) return@mapNotNull null
 
                             val authorScore =
                                 if (original.originalAuthor != null && entry.author != null) {
@@ -103,14 +103,14 @@ object SmartSourceFinder {
                             val known = knownLibrary[source.id to entry.url]
                             val knownScore = if (known != null) 8 else 0
                             val priorityScore = if (source.id.toString() in pinned) 6 else 0
-                            val score = titleScore + authorScore + healthScore + knownScore + priorityScore
+                            val score = matchScore + authorScore + healthScore + knownScore + priorityScore
                             Candidate(
                                 source,
                                 entry,
                                 score,
                                 known?.totalChapters,
                                 buildString {
-                                    append(if (titleScore >= 90) "Exact title" else "Similar title")
+                                    append(if (matchScore >= 90) "Exact title" else "Similar title")
                                     if (health?.needsAttention == true) append("; recent update failures")
                                     if (known != null) append("; already in library")
                                 },
