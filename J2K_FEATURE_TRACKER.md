@@ -4,6 +4,7 @@ Development happens on feature branches. **Do not install over the original J2K 
 
 | ID | Priority | Change | Status | Notes |
 | --- | --- | --- | --- | --- |
+| F00 | Blocker | Repair Android CI dependency resolution | Maven Central replacement committed; new build pending | Archived JitPack FlexibleAdapter artifacts were missing; using published eu.davidea packages instead |
 | F01 | High | Report unavailable or incompatible sources during chapter updates | Implemented; needs build/device validation | Failed manga now appear in the normal update error log |
 | F02 | High | Bounded retries for transient chapter-update failures | Implemented; needs build/device validation | Two retries, 2s then 4s; IOException, HTTP 408 and HTTP 5xx only; no HTTP 429 retry |
 | F03 | High | Persist manually selected manga IDs across process restart | Implemented; needs build/device validation | Stored in WorkManager Data, in batches of 256; **additional titles injected into a running job remain in-memory** |
@@ -17,7 +18,7 @@ Development happens on feature branches. **Do not install over the original J2K 
 
 ## QA checklist for F01–F04
 
-- [ ] CI compiles the modified Android app
+- [ ] CI compiles the modified Android app (original build failed due to missing FlexibleAdapter artifacts; retry underway)
 - [ ] With a source extension removed, chapter updates report affected manga as failed
 - [ ] HTTP 500/503 and transient network errors retry at most twice
 - [ ] HTTP 429 and nontransient parse/login errors do **not** retry
