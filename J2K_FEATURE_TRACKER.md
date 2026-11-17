@@ -13,7 +13,7 @@ Development happens on feature branches. **Do not install over the original J2K 
 | F06 | Medium | Per-title chapter update overrides | Planned | Separate from Samsung Auto Blocker |
 | F07 | High | Fix Samsung source extension APK install friction | Deferred | Test J2K's existing Private installer first |
 | F08 | High | Separate package name and repeatable signed Android builds | Implemented in code; signing secrets and device tests still required | Custom app IDs, no upstream updater/telemetry, manual signed release workflow; never commit keystore |
-| F09 | Medium | Possible duplicates report in Library settings | Code revised; new CI/device check pending | Now considers original/custom names and compatible authors; advisory only |
+| F09 | Medium | Possible duplicates report in Library settings | CI compiled; device test pending | Now considers original/custom names and compatible authors; advisory only |
 | F10 | Later | Integrated recommendations and AI | Planned | Inside the reader, not a companion app |
 
 ## Quick phone APK test
@@ -24,17 +24,23 @@ Successful PR builds upload `J2K-Custom-Test-APK` under the GitHub Actions run's
 
 | ID | Priority | Change | Status | Notes |
 | --- | --- | --- | --- | --- |
-| F11 | High | **Multiple source titles for one manga** | Non-destructive links and navigation coded; unified chapter view pending | Source URLs+IDs stored in existing backup-covered manga memo; keep original progress separate |
-| F12 | High | Extension installer queue concurrency and zero-items guard | Code fixed; new CI/device check pending | CopyOnWriteArrayList, AtomicInteger, completion dedupe and empty-list guard |
-| F13 | Medium | Backup recovery safeguards | Code fixed; new CI/device check pending | Prior auto backups now kept until new backup is verified; existing backup validation retained |
-| F14 | Medium | Improved duplicate matching | Code improved; new CI/device check pending | Original/custom titles + author check; cannot resolve unrelated translation aliases without external metadata |
+| F11 | High | **Multiple source titles for one manga** | Link/navigation code compiled; merged chapters not implemented; device test pending | Source URLs+IDs stored in existing backup-covered manga memo; keep original progress separate |
+| F12 | High | Extension installer queue concurrency and zero-items guard | CI compiled; device test pending | CopyOnWriteArrayList, AtomicInteger, completion dedupe and empty-list guard |
+| F13 | Medium | Backup recovery safeguards | CI compiled; device test pending | Prior auto backups now kept until new backup is verified; existing backup validation retained |
+| F14 | Medium | Improved duplicate matching | CI compiled; device test pending | Original/custom titles + author check; cannot resolve unrelated translation aliases without external metadata |
 
-| F15 | High | Source health panel | Code added; new CI/device check pending | Counts real library successes/failures; missing extensions; failure streaks rather than guessing a site is dead |
-| F16 | High | Smart source finder per manga | Code added; new CI/device check pending | Searches up to 24 enabled sources on request, ranks title/author/chapters/health, shows best recommendation; user confirms link/open |
+| F15 | High | Source health panel | CI compiled; device test pending | Counts real library successes/failures; missing extensions; failure streaks rather than guessing a site is dead |
+| F16 | High | Smart source finder per manga | CI compiled; device test pending | Searches up to 24 enabled sources on request, ranks title/author/chapters/health, shows best recommendation; user confirms link/open |
+
+| F17 | Medium | Find extensions by bundled source website names | CI compiled; device test pending | Extension search checks underlying source names and package names |
+| F18 | High | Alternate-title search from Tegaki | Code committed; newest CI/device test pending | Extracts Alternative Titles/Names and adds bounded fallback queries for other translations |
+
+**Full research and manual tests:** [FEATURE_RESEARCH_AND_TEST_PLAN.md](FEATURE_RESEARCH_AND_TEST_PLAN.md). **CI evidence:** PR #1 [successful](https://github.com/braxtondcoleman/tachiyomiJ2K/actions/runs/44059420302), PR #2 [successful through F17](https://github.com/braxtondcoleman/tachiyomiJ2K/actions/runs/44157497578). F18 needs its own build check. Neither PR has been merged or device-tested.
 
 ## Smart source / merge QA checklist
 
-- [ ] CI compiles with J2K Custom smart-source components and extension fixes
+- [x] CI compiles J2K Custom smart-source components and extension fixes through F17 (see run above)
+- [ ] CI compiles F18 alternate-title search
 - [ ] Missing extension appears under Settings → Library → Source health
 - [ ] Repeated errors update health correctly; mixed success is not labelled as site-wide outage
 - [ ] Smart search on one title finds confident results across installed enabled catalogues
