@@ -42,6 +42,9 @@ import timber.log.Timber
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.lang.ref.WeakReference
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 
 class ExtensionInstallerJob(
@@ -52,7 +55,7 @@ class ExtensionInstallerJob(
 
     private val preferences: PreferencesHelper = Injekt.get()
 
-    private var activeInstalls = mutableListOf<String>()
+    private var activeInstalls = CopyOnWriteArrayList<String>()
 
     val extensionManager: ExtensionManager = Injekt.get()
 
@@ -103,11 +106,12 @@ class ExtensionInstallerJob(
                 installedExt.versionCode < it.versionCode || installedExt.libVersion < it.libVersion
             }
 
-        activeInstalls = list.map { it.pkgName }.toMutableList()
+        activeInstalls = CopyOnWriteArrayList(list.map { it.pkgName })
         emitScope.launch { list.forEach { extensionManager.setPending(it.pkgName) } }
-        var installed = 0
-        val installedExtensions = mutableListOf<ExtensionManager.ExtensionInfo>()
-        val failedExtensions = mutableListOf<ExtensionManager.ExtensionInfo>()
+        val installed = AtomicInteger(0)
+        val installedExtensions = CopyOnWriteArrayList<ExtensionManager.ExtensionInfo>()
+        val failedExtensions = CopyOnWriteArrayList<ExtensionManager.ExtensionInfo>()
+        val finishedPackages = ConcurrentHashMap.newKeySet<String>()
         val requestSemaphore = Semaphore(3)
         coroutineScope {
             job =
@@ -119,11 +123,12 @@ class ExtensionInstallerJob(
                                     extensionManager
                                         .installExtension(extension, this)
                                         .collect {
-                                            if (it.first.isCompleted()) {
+                                            // Installer flows may emit completion again; count each APK once.
+                                            if (it.first.isCompleted() && finishedPackages.add(extension.pkgName)) {
                                                 activeInstalls.remove(extension.pkgName)
                                                 if (it.first == InstallStep.Installed) {
                                                     installedExtensions.add(extension)
-                                                    installed++
+                                                    installed.incrementAndGet()
                                                     val prefCount = preferences.extensionUpdatesCount().get()
                                                     preferences
                                                         .extensionUpdatesCount()
@@ -135,7 +140,7 @@ class ExtensionInstallerJob(
                                                     failedExtensions.add(extension)
                                                 }
                                             }
-                                            notifier.showProgressNotification(installed, list.size)
+                                            notifier.showProgressNotification(installed.get(), list.size)
                                             if (activeInstalls.isEmpty() || isStopped) {
                                                 cancel()
                                             }
@@ -197,7 +202,8 @@ class ExtensionInstallerJob(
             info: List<ExtensionManager.ExtensionInfo>,
             showUpdatedExtension: Int = -1,
         ) {
-            // chunked to satisfy input limits
+            if (info.isEmpty()) return
+            // Chunked to satisfy WorkManager Data input size limits.
             val requests =
                 info.chunked(32).map {
                     OneTimeWorkRequestBuilder<ExtensionInstallerJob>()

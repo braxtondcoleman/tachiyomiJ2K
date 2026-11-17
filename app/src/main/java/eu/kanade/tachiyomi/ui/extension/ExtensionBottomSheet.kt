@@ -400,8 +400,18 @@ class ExtensionBottomSheet
         fun drawExtensions() {
             if (controller.extQuery.isNotBlank()) {
                 extAdapter?.updateDataSet(
-                    extensions.filter {
-                        it.extension.name.contains(controller.extQuery, ignoreCase = true)
+                    extensions.filter { item ->
+                        val query = controller.extQuery.trim()
+                        val extension = item.extension
+                        extension.name.contains(query, ignoreCase = true) ||
+                            extension.pkgName.contains(query, ignoreCase = true) ||
+                            when (extension) {
+                                is Extension.Installed ->
+                                    extension.sources.any { source -> source.name.contains(query, ignoreCase = true) }
+                                is Extension.Available ->
+                                    extension.sources.any { source -> source.name.contains(query, ignoreCase = true) }
+                                is Extension.Untrusted -> false
+                            }
                     },
                 )
             } else {

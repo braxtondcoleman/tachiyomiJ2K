@@ -1220,6 +1220,8 @@ class MangaDetailsController :
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_smart_sources -> SmartSourcesDialog.search(this)
+            R.id.action_linked_sources -> SmartSourcesDialog.linked(this)
             R.id.action_edit -> openEditMangaDialog()
             R.id.action_open_in_web_view -> openInWebView()
             R.id.action_refresh_tracking -> presenter.refreshTracking(true)

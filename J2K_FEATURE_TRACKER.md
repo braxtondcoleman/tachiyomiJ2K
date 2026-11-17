@@ -4,7 +4,7 @@ Development happens on feature branches. **Do not install over the original J2K 
 
 | ID | Priority | Change | Status | Notes |
 | --- | --- | --- | --- | --- |
-| F00 | Blocker | Repair Android CI dependency resolution | Maven Central replacement committed; new build pending | Archived JitPack FlexibleAdapter artifacts were missing; using published eu.davidea packages instead |
+| F00 | Blocker | Repair Android CI dependency resolution | CI compiled successfully; phone testing pending | Archived JitPack FlexibleAdapter artifacts were missing; using published eu.davidea packages instead |
 | F01 | High | Report unavailable or incompatible sources during chapter updates | Implemented; needs build/device validation | Failed manga now appear in the normal update error log |
 | F02 | High | Bounded retries for transient chapter-update failures | Implemented; needs build/device validation | Two retries, 2s then 4s; IOException, HTTP 408 and HTTP 5xx only; no HTTP 429 retry |
 | F03 | High | Persist manually selected manga IDs across process restart | Implemented; needs build/device validation | Stored in WorkManager Data, in batches of 256; **additional titles injected into a running job remain in-memory** |
@@ -13,12 +13,44 @@ Development happens on feature branches. **Do not install over the original J2K 
 | F06 | Medium | Per-title chapter update overrides | Planned | Separate from Samsung Auto Blocker |
 | F07 | High | Fix Samsung source extension APK install friction | Deferred | Test J2K's existing Private installer first |
 | F08 | High | Separate package name and repeatable signed Android builds | Implemented in code; signing secrets and device tests still required | Custom app IDs, no upstream updater/telemetry, manual signed release workflow; never commit keystore |
-| F09 | Medium | Possible duplicates report in Library settings | Implemented read-only; needs build/device validation | Groups titles across sources, displays per-copy read/unread counts; no automatic merging |
+| F09 | Medium | Possible duplicates report in Library settings | CI compiled; device test pending | Now considers original/custom names and compatible authors; advisory only |
 | F10 | Later | Integrated recommendations and AI | Planned | Inside the reader, not a companion app |
 
 ## Quick phone APK test
 
 Successful PR builds upload `J2K-Custom-Test-APK` under the GitHub Actions run's **Artifacts** section. On Android, download the ZIP from the run, extract `J2K-Custom-Test.apk`, and install it. The debug package is `eu.kanade.tachiyomi.customj2k.debug`, so it will not replace your original reader. This is a test build with GitHub's ephemeral debug signing certificate; **future test builds may not update in place**. Use the dedicated signed-release workflow and a stable personal keystore for lasting installs. Samsung Auto Blocker may need to be temporarily disabled to approve the install; do not work around device security.
+
+## New research and engineering priorities
+
+| ID | Priority | Change | Status | Notes |
+| --- | --- | --- | --- | --- |
+| F11 | High | **Multiple source titles for one manga** | Link/navigation code compiled; merged chapters not implemented; device test pending | Source URLs+IDs stored in existing backup-covered manga memo; keep original progress separate |
+| F12 | High | Extension installer queue concurrency and zero-items guard | CI compiled; device test pending | CopyOnWriteArrayList, AtomicInteger, completion dedupe and empty-list guard |
+| F13 | Medium | Backup recovery safeguards | CI compiled; device test pending | Prior auto backups now kept until new backup is verified; existing backup validation retained |
+| F14 | Medium | Improved duplicate matching | CI compiled; device test pending | Original/custom titles + author check; cannot resolve unrelated translation aliases without external metadata |
+
+| F15 | High | Source health panel | CI compiled; device test pending | Counts real library successes/failures; missing extensions; failure streaks rather than guessing a site is dead |
+| F16 | High | Smart source finder per manga | CI compiled; device test pending | Searches up to 24 enabled sources on request, ranks title/author/chapters/health, shows best recommendation; user confirms link/open |
+
+| F17 | Medium | Find extensions by bundled source website names | CI compiled; device test pending | Extension search checks underlying source names and package names |
+| F18 | High | Alternate-title search from Tegaki | Code committed; newest CI/device test pending | Extracts Alternative Titles/Names and adds bounded fallback queries for other translations |
+
+**Full research and manual tests:** [FEATURE_RESEARCH_AND_TEST_PLAN.md](FEATURE_RESEARCH_AND_TEST_PLAN.md). **CI evidence:** PR #1 [successful](https://github.com/braxtondcoleman/tachiyomiJ2K/actions/runs/44059420302), PR #2 [successful through F17](https://github.com/braxtondcoleman/tachiyomiJ2K/actions/runs/44157497578). F18 needs its own build check. Neither PR has been merged or device-tested.
+
+## Smart source / merge QA checklist
+
+- [x] CI compiles J2K Custom smart-source components and extension fixes through F17 (see run above)
+- [ ] CI compiles F18 alternate-title search
+- [ ] Missing extension appears under Settings → Library → Source health
+- [ ] Repeated errors update health correctly; mixed success is not labelled as site-wide outage
+- [ ] Smart search on one title finds confident results across installed enabled catalogues
+- [ ] Cancelling an in-progress smart search cancels outstanding requests
+- [ ] Recommended source matches title and chapter coverage; low-confidence mismatches excluded
+- [ ] Link/unlink preserves original library, chapters, downloads and progress
+- [ ] Backup roundtrip restores the portable URL + source ID link entries from manga memo
+- [ ] Automatic backups retain old copies if the new backup fails validation
+- [ ] Installer handles zero candidates and parallel successful/failed installs without double-counting
+- [ ] Cross-source **unified chapter list is NOT implemented** yet and must be tested separately
 
 ## QA checklist for F01–F04
 

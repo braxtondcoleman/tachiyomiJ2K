@@ -2,7 +2,7 @@ name: Pull request Android build
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, feature/reliable-library-updates]
   workflow_dispatch:
 
 permissions:

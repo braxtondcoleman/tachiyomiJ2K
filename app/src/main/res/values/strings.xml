@@ -1282,4 +1282,22 @@
     <string name="library_duplicate_finder_summary">Find repeated manga across sources without changing reading progress</string>
     <string name="library_duplicate_finder_empty">No duplicate titles found in your library.</string>
     <string name="library_duplicate_finder_share">Share duplicate list</string>
+    <string name="library_source_health">Source health</string>
+    <string name="library_source_health_summary">See failing and missing sources based on actual chapter checks</string>
+    <string name="smart_sources_search">Find best sources</string>
+    <string name="smart_sources_title">Smart source picker</string>
+    <string name="smart_sources_scanning">Searching enabled sources and comparing chapters. You can cancel.</string>
+    <string name="smart_sources_none">No confident matches found. Try updating or enabling more sources.</string>
+    <string name="smart_sources_failed">Could not complete source search</string>
+    <string name="smart_sources_candidate">Source match</string>
+    <string name="smart_sources_open">Open source</string>
+    <string name="smart_sources_link">Link source</string>
+    <string name="smart_sources_favorite_first">Add this manga to your library before linking sources</string>
+    <string name="smart_sources_linked">Alternate source linked. Reading progress was not changed.</string>
+    <string name="smart_sources_already_linked">This source is already linked or could not be saved</string>
+    <string name="smart_sources_linked_title">Linked sources</string>
+    <string name="smart_sources_linked_summary">Recommended sources appear first; tap one to open or unlink it.</string>
+    <string name="smart_sources_no_links">No alternate sources linked yet. Use Smart Source Picker to search.</string>
+    <string name="smart_sources_unlink">Unlink</string>
+    <string name="smart_sources_unlinked">Source unlinked; original manga remains unchanged</string>
 </resources>
