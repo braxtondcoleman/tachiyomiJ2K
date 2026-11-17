@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.library.LibraryUpdateHistory
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.SourceHealthLedger
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
 import eu.kanade.tachiyomi.data.preference.DEVICE_ONLY_ON_WIFI
@@ -17,6 +18,7 @@ import eu.kanade.tachiyomi.data.preference.MANGA_NON_READ
 import eu.kanade.tachiyomi.data.preference.MARK_DUPLICATE_CHAPTER_READ_EXISTING
 import eu.kanade.tachiyomi.data.preference.MARK_DUPLICATE_CHAPTER_READ_NEW
 import eu.kanade.tachiyomi.data.preference.asImmediateFlowIn
+import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.category.CategoryController
 import eu.kanade.tachiyomi.ui.library.LibraryPresenter
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
@@ -253,6 +255,21 @@ class SettingsLibraryController : SettingsController() {
                     entryValues = categories.map { it.id.toString() }
 
                     allSelectionRes = R.string.all
+                }
+
+                preference {
+                    key = "library_source_health"
+                    isPersistent = false
+                    titleRes = R.string.library_source_health
+                    summaryRes = R.string.library_source_health_summary
+                    onClick {
+                        val report = SourceHealthLedger.report(context, Injekt.get<SourceManager>())
+                        context.materialAlertDialog()
+                            .setTitle(R.string.library_source_health)
+                            .setMessage(report.take(12_000))
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
                 }
 
                 switchPreference {

@@ -76,6 +76,16 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_smart_sources"
+        android:title="@string/smart_sources_search"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_linked_sources"
+        android:title="@string/smart_sources_linked_title"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_migrate"
         android:icon="@drawable/ic_swap_calls_24dp"
         android:title="@string/migrate"

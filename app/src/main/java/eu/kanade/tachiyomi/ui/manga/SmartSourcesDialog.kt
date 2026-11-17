@@ -69,7 +69,7 @@ object SmartSourcesDialog {
                     val tag = if (index == 0) "★ Best match  " else ""
                     val count = result.chapterCount?.let { " · $it chapters" } ?: ""
                     "$tag${result.manga.title}\n${result.source.name} · score ${result.score}$count"
-                }.toTypedArray()
+                }.map { it as CharSequence }.toTypedArray()
 
             currentActivity.materialAlertDialog()
                 .setTitle(R.string.smart_sources_title)
@@ -151,7 +151,7 @@ object SmartSourcesDialog {
                     val source = controller.presenter.sourceManager.getOrStub(link.sourceId)
                     val warning = if (controller.presenter.sourceManager.get(link.sourceId) == null) " ⚠ Missing extension" else ""
                     "${if (i == 0) "★ " else ""}${link.title}\n${source.name}$warning"
-                }.toTypedArray()
+                }.map { it as CharSequence }.toTypedArray()
             activity.materialAlertDialog()
                 .setTitle(R.string.smart_sources_linked_title)
                 .setMessage(R.string.smart_sources_linked_summary)
