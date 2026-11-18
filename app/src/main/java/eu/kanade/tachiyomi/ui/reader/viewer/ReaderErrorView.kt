@@ -8,6 +8,7 @@ import androidx.core.view.isVisible
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.data.library.ReaderContinuityPlanner
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import eu.kanade.tachiyomi.ui.reader.WebsiteAccessPolicy
 import eu.kanade.tachiyomi.ui.reader.ReaderContinuityDialog
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -20,6 +21,8 @@ class ReaderErrorView
     ) : LinearLayout(context, attrs) {
         lateinit var binding: ReaderErrorBinding
             private set
+
+        var retryPageAction: (() -> Unit)? = null
 
         var viewer: PagerViewer? = null
             set(value) {
@@ -50,6 +53,13 @@ class ReaderErrorView
             binding.actionTryAlternate.setOnClickListener {
                 val host = findReaderActivity() ?: return@setOnClickListener
                 ReaderContinuityDialog.show(host, ReaderContinuityPlanner.Direction.SAME_CHAPTER)
+            }
+            val baseUrl = reader?.viewModel?.getSource()?.baseUrl
+            binding.actionVerifyWebsite.isVisible = baseUrl != null &&
+                WebsiteAccessPolicy.chooseTarget(baseUrl, url) != null
+            binding.actionVerifyWebsite.setOnClickListener {
+                val host = findReaderActivity() ?: return@setOnClickListener
+                host.requestWebsiteVerification(url, retryPageAction)
             }
             if (url?.startsWith("http", true) == true) {
                 binding.actionOpenInWebView.isVisible = true
