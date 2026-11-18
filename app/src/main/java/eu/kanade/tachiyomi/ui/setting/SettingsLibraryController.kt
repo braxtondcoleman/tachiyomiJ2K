@@ -303,6 +303,21 @@ class SettingsLibraryController : SettingsController() {
                 }
 
                 preference {
+                    key = "j2k_personalized_discovery"
+                    isPersistent = false
+                    title = "Discover manga for me"
+                    summary = "Popular titles from installed sources, ranked locally by genres and authors in your library"
+                    onClick {
+                        val host = activity as? androidx.appcompat.app.AppCompatActivity
+                        if (host != null) {
+                            DiscoveryDialog.show(host, viewScope, db, Injekt.get(), preferences) { manga ->
+                                router.pushController(MangaDetailsController(manga, true).withFadeTransaction())
+                            }
+                        }
+                    }
+                }
+
+                preference {
                     key = "j2k_extension_intelligence"
                     isPersistent = false
                     title = "Extension intelligence"
