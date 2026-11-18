@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.SManga
 import androidx.appcompat.app.AppCompatActivity
 import eu.kanade.tachiyomi.ui.extension.ExtensionIntelligenceDialog
+import eu.kanade.tachiyomi.ui.library.AutoFixSettingsDialog
 import eu.kanade.tachiyomi.ui.source.BrowseController
 import eu.kanade.tachiyomi.ui.source.browse.BrowseSourceController
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
@@ -49,28 +50,44 @@ object SourceRecoveryDialog {
     fun show(controller: MangaDetailsController) {
         val activity = controller.activity ?: return
         val opts: Array<CharSequence> = arrayOf(
-            "Failure details and source health",
-            "Chapter coverage & replacement preview",
-            "Find possible replacement sources",
+            "Auto-fix settings · on/off",
+            "What failed? · source health",
+            "Compare chapter coverage",
+            "Find another manga source",
             "Retry this manga's chapter update",
-            "Browse unified chapters",
-            "Open source / extension manager",
-            "Diagnose extension and find compatible source",
+            "Browse all chapter versions",
+            "Open website / extension manager",
+            "Diagnose extension compatibility",
         )
-        activity.materialAlertDialog()
-            .setTitle("Source recovery")
-            .setItems(opts) { _, choice ->
+        val dialog = activity.materialAlertDialog()
+            .setTitle("Fix a reading problem")
+            .setItems(opts, null)
+            .setNegativeButton("Back to manga tools", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.listView.setOnItemClickListener { _, _, choice, _ ->
                 when (choice) {
-                    0 -> showStatus(controller)
-                    1 -> showCoverage(controller)
-                    2 -> SmartSourcesDialog.search(controller)
-                    3 -> retry(controller)
-                    4 -> UnifiedChaptersDialog.show(controller)
-                    5 -> openSourceTools(controller)
-                    6 -> showExtensionIntelligence(controller)
+                    0 -> (activity as? AppCompatActivity)?.let(AutoFixSettingsDialog::show)
+                    1 -> showStatus(controller)
+                    2 -> showCoverage(controller)
+                    3 -> {
+                        dialog.dismiss()
+                        SmartSourcesDialog.search(controller)
+                    }
+                    4 -> retry(controller)
+                    5 -> UnifiedChaptersDialog.show(controller)
+                    6 -> {
+                        dialog.dismiss()
+                        openSourceTools(controller)
+                    }
+                    7 -> {
+                        dialog.dismiss()
+                        showExtensionIntelligence(controller)
+                    }
                 }
             }
-            .setNegativeButton(android.R.string.cancel, null).show()
+        }
+        dialog.show()
     }
 
     private fun showExtensionIntelligence(controller: MangaDetailsController) {
