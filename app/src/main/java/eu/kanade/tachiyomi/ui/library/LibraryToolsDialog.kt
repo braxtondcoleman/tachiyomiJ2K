@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.ui.library
 
 import androidx.appcompat.app.AppCompatActivity
+import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.base.MaterialMenuSheet
 import eu.kanade.tachiyomi.ui.extension.ExtensionIntelligenceDialog
 import eu.kanade.tachiyomi.ui.manga.DiscoveryDialog
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
@@ -16,54 +18,57 @@ import eu.kanade.tachiyomi.util.view.withFadeTransaction
 object LibraryToolsDialog {
     fun show(controller: LibraryController) {
         val activity = controller.activity as? AppCompatActivity ?: return
-        val entries: Array<CharSequence> = arrayOf(
-            "Find manga for me\nSuggestions based on what I read",
-            "Check my library\nDuplicates, missing sources and update problems",
-            "Fix extensions & sources\nFind missing or outdated website extensions",
-            "How does this work?\nLearn where to find chapters and alternate sources",
+        val actions = listOf(
+            MaterialMenuSheet.MenuSheetItem(0, R.drawable.ic_search_24dp, text = "Discover manga for me"),
+            MaterialMenuSheet.MenuSheetItem(1, R.drawable.ic_library_outline_24dp, text = "Check my library"),
+            MaterialMenuSheet.MenuSheetItem(2, R.drawable.ic_extension_update_24dp, text = "Fix sources & extensions"),
+            MaterialMenuSheet.MenuSheetItem(3, R.drawable.ic_help_outline_24dp, text = "How does this work?"),
         )
-        activity.materialAlertDialog()
-            .setTitle("Explore & organize")
-            .setItems(entries) { _, choice ->
-                when (choice) {
-                    0 -> DiscoveryDialog.show(
-                        activity,
-                        controller.viewScope,
-                        controller.presenter.db,
-                        controller.presenter.sourceManager,
-                        controller.preferences,
-                    ) { manga ->
-                        controller.router.pushController(
-                            MangaDetailsController(manga, true).withFadeTransaction(),
-                        )
-                    }
-                    1 -> LibraryAuditDialog.show(
-                        activity,
-                        controller.viewScope,
-                        controller.presenter.db,
-                        controller.presenter.sourceManager,
-                    ) { manga ->
-                        controller.router.pushController(
-                            MangaDetailsController(manga, true).withFadeTransaction(),
-                        )
-                    }
-                    2 -> ExtensionIntelligenceDialog.show(activity) {
-                        controller.router.pushController(BrowseController().withFadeTransaction())
-                    }
-                    3 -> activity.materialAlertDialog()
-                        .setTitle("Your manga reading flow")
-                        .setMessage(
-                            "1. Library: open the manga you want to read.\n\n" +
-                                "2. Manga details: tap a chapter to read. Use Explore & fix manga to find more chapter versions, other websites or similar manga.\n\n" +
-                                "3. Reader: if a chapter fails, tap Try another source. You choose the new chapter; nothing switches automatically.\n\n" +
-                                "4. Library tools: Find manga for me, Check my library or Fix extensions & sources.\n\n" +
-                                "Your existing reading history, downloads and original manga are preserved when reviewing or linking sources.",
-                        )
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show()
+        MaterialMenuSheet(
+            activity,
+            actions,
+            title = "Explore & organize",
+            subtitle = "Discover manga, maintain your library, or get help",
+        ) { _, choice ->
+            when (choice) {
+                0 -> DiscoveryDialog.show(
+                    activity,
+                    controller.viewScope,
+                    controller.presenter.db,
+                    controller.presenter.sourceManager,
+                    controller.preferences,
+                ) { manga ->
+                    controller.router.pushController(
+                        MangaDetailsController(manga, true).withFadeTransaction(),
+                    )
                 }
+                1 -> LibraryAuditDialog.show(
+                    activity,
+                    controller.viewScope,
+                    controller.presenter.db,
+                    controller.presenter.sourceManager,
+                ) { manga ->
+                    controller.router.pushController(
+                        MangaDetailsController(manga, true).withFadeTransaction(),
+                    )
+                }
+                2 -> ExtensionIntelligenceDialog.show(activity) {
+                    controller.router.pushController(BrowseController().withFadeTransaction())
+                }
+                3 -> activity.materialAlertDialog()
+                    .setTitle("Your manga reading flow")
+                    .setMessage(
+                        "1. Library: open the manga you want to read.\n\n" +
+                            "2. Manga details: tap a chapter to read. Open Manga tools to find chapter versions, alternate websites, or similar manga.\n\n" +
+                            "3. Reader: if a page fails, use Try another source. You choose the alternative; nothing switches automatically.\n\n" +
+                            "4. Explore & organize: recommendations, library health, and extension diagnostics are here.\n\n" +
+                            "Your existing reading history and downloads are preserved when reviewing or linking sources.",
+                    )
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+                else -> return@MaterialMenuSheet false
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            true
+        }.show()
     }
 }
