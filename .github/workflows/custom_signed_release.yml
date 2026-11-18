@@ -2,19 +2,27 @@ name: Signed J2K Custom APK
 
 on:
   workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Monotonically increasing Android release versionCode (114, 115, 116...)'
+        required: true
+        type: number
+        default: 114
 
 permissions:
   contents: read
 
 jobs:
   signed-build:
-    name: Build signed release for personal use
+    name: Build and validate user-signed APK
     runs-on: ubuntu-24.04
     env:
       J2K_SIGNING_KEY_B64: ${{ secrets.J2K_SIGNING_KEY_B64 }}
       J2K_STORE_PASSWORD: ${{ secrets.J2K_STORE_PASSWORD }}
       J2K_KEY_ALIAS: ${{ secrets.J2K_KEY_ALIAS }}
       J2K_KEY_PASSWORD: ${{ secrets.J2K_KEY_PASSWORD }}
+      J2K_SIGNING_CERT_SHA256: ${{ secrets.J2K_SIGNING_CERT_SHA256 }}
+      J2K_RELEASE_VERSION_CODE: ${{ inputs.version_code }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,28 +39,43 @@ jobs:
         run: |
           mkdir -p ~/.gradle
           cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
-      - name: Verify signing secrets and decode keystore
+      - name: Validate all signing inputs and decode keystore
         shell: bash
         run: |
           set -euo pipefail
-          for name in J2K_SIGNING_KEY_B64 J2K_STORE_PASSWORD J2K_KEY_ALIAS J2K_KEY_PASSWORD; do
+          for name in J2K_SIGNING_KEY_B64 J2K_STORE_PASSWORD J2K_KEY_ALIAS J2K_KEY_PASSWORD J2K_SIGNING_CERT_SHA256 J2K_RELEASE_VERSION_CODE; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing secret ${name}; configure it in GitHub Actions secrets."
+              echo "::error::Missing $name. Refusing to create an unsigned or ambiguously signed APK."
               exit 1
             fi
           done
+          [[ "$J2K_RELEASE_VERSION_CODE" =~ ^[0-9]+$ ]] || { echo "::error::version_code must be numeric"; exit 1; }
           printf '%s' "$J2K_SIGNING_KEY_B64" | base64 --decode > "$RUNNER_TEMP/j2k-custom.jks"
           chmod 600 "$RUNNER_TEMP/j2k-custom.jks"
           echo "J2K_RELEASE_KEYSTORE=$RUNNER_TEMP/j2k-custom.jks" >> "$GITHUB_ENV"
+          keytool -list -keystore "$RUNNER_TEMP/j2k-custom.jks" -storepass "$J2K_STORE_PASSWORD" -alias "$J2K_KEY_ALIAS" >/dev/null
+      - name: Run JVM safety regressions
+        run: ./gradlew :app:testStandardDebugUnitTest --stacktrace
       - name: Build signed release
         run: ./gradlew :app:assembleStandardRelease --stacktrace
-      - name: Upload release APKs
+      - name: Verify certificate identity, package and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          find app/build/outputs/apk/standard/release -name '*universal*release*.apk' -print
+          APK="$(find app/build/outputs/apk/standard/release -name '*universal*release*.apk' -print -quit)"
+          [[ -n "$APK" ]] || { echo "::error::No universal signed release APK"; exit 1; }
+          bash scripts/verify_apk_identity.sh "$APK" \
+            eu.kanade.tachiyomi.customj2k "$J2K_RELEASE_VERSION_CODE" "$J2K_SIGNING_CERT_SHA256"
+          mkdir -p release-apk
+          cp "$APK" release-apk/J2K-Custom-v${J2K_RELEASE_VERSION_CODE}-signed.apk
+      - name: Upload verified, user-signed release
         uses: actions/upload-artifact@v4
         with:
-          name: J2K-Custom-signed-APKs
-          path: app/build/outputs/apk/standard/release/*.apk
+          name: J2K-Custom-signed-v${{ inputs.version_code }}
+          path: release-apk/*.apk
           if-no-files-found: error
           retention-days: 30
-      - name: Delete temporary keystore
+      - name: Remove temporary keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/j2k-custom.jks"
