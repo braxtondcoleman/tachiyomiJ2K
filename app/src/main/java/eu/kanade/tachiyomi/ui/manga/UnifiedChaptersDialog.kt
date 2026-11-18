@@ -7,11 +7,11 @@ import eu.kanade.tachiyomi.data.database.models.MangaImpl
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
 import eu.kanade.tachiyomi.data.library.UnifiedChapterPlanner
+import eu.kanade.tachiyomi.data.library.UnifiedChapterReadThrough
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
-import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,6 +37,7 @@ object UnifiedChaptersDialog {
         val variant: UnifiedChapterPlanner.Variant,
         val manga: Manga?,
         val chapter: Chapter?,
+        val rawChapter: SChapter,
         val sourceName: String,
         val mangaTitle: String,
     )
@@ -204,7 +205,7 @@ object UnifiedChaptersDialog {
                 scanlator = chapter.scanlator,
                 isPrimary = isPrimary,
                 isPreferred = isPreferred,
-                isAvailable = installed || (local?.id != null),
+                isAvailable = installed,
                 needsAttention = needsAttention,
                 read = local?.read == true,
                 bookmarked = local?.bookmark == true,
@@ -212,6 +213,7 @@ object UnifiedChaptersDialog {
             ),
             manga = manga,
             chapter = local,
+            rawChapter = chapter,
             sourceName = sourceName,
             mangaTitle = mangaTitle,
         )
@@ -233,7 +235,7 @@ object UnifiedChaptersDialog {
             val route = if (target.chapter?.id != null && target.manga?.id != null) {
                 " · open chapter"
             } else {
-                " · open manga page"
+                " · read on demand"
             }
             "$recommended${target.sourceName}$health$route\n${target.variant.chapterName}"
         }.map { it as CharSequence }.toTypedArray()
@@ -272,22 +274,41 @@ object UnifiedChaptersDialog {
     private fun open(controller: MangaDetailsController, target: Target) {
         val activity = controller.activity ?: return
         if (!target.variant.isAvailable) {
-            activity.materialAlertDialog().setMessage("Source unavailable; enable its extension first.")
+            activity.materialAlertDialog()
+                .setMessage("This source is unavailable. Enable its extension before reading.")
                 .setPositiveButton(android.R.string.ok, null).show()
             return
         }
-        val manga = target.manga
-        val chapter = target.chapter
-        if (manga?.id != null && chapter?.id != null) {
-            activity.startActivity(ReaderActivity.newIntent(activity, manga, chapter))
-        } else {
-            // Avoid inserting a temporary chapter just to make it readable.
-            val destination = manga ?: MangaImpl().apply {
-                source = target.variant.sourceId
-                url = target.variant.mangaUrl
-                title = target.mangaTitle
+        // Reading a chapter is the only write in the unified view, and requires
+        // the user to explicitly choose and open that exact source chapter.
+        val primaryId = controller.presenter.manga.id ?: return
+        controller.viewScope.launch {
+            val openable = try {
+                withContext(Dispatchers.IO) {
+                    UnifiedChapterReadThrough.resolve(
+                        db = controller.presenter.db,
+                        sources = controller.presenter.sourceManager,
+                        primaryId = primaryId,
+                        sourceId = target.variant.sourceId,
+                        mangaUrl = target.variant.mangaUrl,
+                        mangaTitle = target.mangaTitle,
+                        selected = target.rawChapter,
+                    )
+                }
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                Timber.w(error, "Could not open unified chapter")
+                controller.activity?.materialAlertDialog()
+                    ?.setTitle("Chapter unavailable")
+                    ?.setMessage("Unable to open this source chapter: ${error.message ?: "Unknown error"}")
+                    ?.setPositiveButton(android.R.string.ok, null)
+                    ?.show()
+                return@launch
             }
-            controller.router.pushController(MangaDetailsController(destination, true).withFadeTransaction())
+            controller.activity?.let { current ->
+                current.startActivity(ReaderActivity.newIntent(current, openable.manga, openable.chapter))
+            }
         }
     }
 }
