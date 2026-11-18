@@ -77,8 +77,9 @@
 
     <item
         android:id="@+id/action_manga_tools"
+        android:icon="@drawable/ic_tune_24dp"
         android:title="Explore &amp; fix manga"
-        app:showAsAction="never" />
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_discover_related"
