@@ -33,6 +33,7 @@ object LibraryAuditPlanner {
 
     data class Report(
         val uniqueEntries: Int,
+        val allEntries: List<Entry>,
         val missingExtensions: List<Entry>,
         val failedUpdates: List<Entry>,
         val sourcesNeedingAttention: List<Entry>,
@@ -83,6 +84,7 @@ object LibraryAuditPlanner {
         val unique = entries.distinctBy { it.id }.filter { it.url.isNotBlank() }
         return Report(
             uniqueEntries = unique.size,
+            allEntries = unique,
             missingExtensions = unique.filterNot { it.sourceInstalled },
             failedUpdates = unique.filter { it.activeUpdateFailure },
             sourcesNeedingAttention = unique.filter { it.sourceNeedsAttention },
