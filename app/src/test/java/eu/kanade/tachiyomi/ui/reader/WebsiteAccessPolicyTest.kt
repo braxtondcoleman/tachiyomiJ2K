@@ -57,4 +57,52 @@ class WebsiteAccessPolicyTest {
         assertNull(WebsiteAccessPolicy.clearance("cf_clearance_backup=abc; session=123"))
         assertEquals("xyz", WebsiteAccessPolicy.clearance("token=1; cf_clearance=xyz; other=2"))
     }
+    @Test fun aBackgroundChallengeDoesNotInterruptHealthyReading() {
+        assertFalse(WebsiteAccessPolicy.shouldOfferOverlay(
+            foreground = true,
+            sameSource = true,
+            sameChapter = true,
+            currentPageFailed = false,
+            chapterFailed = false,
+        ))
+        assertFalse(WebsiteAccessPolicy.shouldOfferOverlay(
+            foreground = false,
+            sameSource = true,
+            sameChapter = true,
+            currentPageFailed = true,
+            chapterFailed = false,
+        ))
+        assertFalse(WebsiteAccessPolicy.shouldOfferOverlay(
+            foreground = true,
+            sameSource = false,
+            sameChapter = true,
+            currentPageFailed = true,
+            chapterFailed = false,
+        ))
+        assertFalse(WebsiteAccessPolicy.shouldOfferOverlay(
+            foreground = true,
+            sameSource = true,
+            sameChapter = false,
+            currentPageFailed = true,
+            chapterFailed = false,
+        ))
+    }
+
+    @Test fun currentPageOrCurrentChapterFailureMayOfferInteractiveHelp() {
+        assertTrue(WebsiteAccessPolicy.shouldOfferOverlay(
+            foreground = true,
+            sameSource = true,
+            sameChapter = true,
+            currentPageFailed = true,
+            chapterFailed = false,
+        ))
+        assertTrue(WebsiteAccessPolicy.shouldOfferOverlay(
+            foreground = true,
+            sameSource = true,
+            sameChapter = true,
+            currentPageFailed = false,
+            chapterFailed = true,
+        ))
+    }
+
 }
