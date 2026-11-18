@@ -86,6 +86,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.library.ReaderContinuityPlanner
+import eu.kanade.tachiyomi.data.library.RecoveryControls
 import eu.kanade.tachiyomi.network.interceptor.CloudflareChallengeSignal
 import eu.kanade.tachiyomi.data.preference.asImmediateFlowIn
 import eu.kanade.tachiyomi.data.preference.toggle
@@ -333,6 +334,7 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
         // Unrelated background library/source failures cannot open an overlay.
         CloudflareChallengeSignal.failures
             .onEach { failure ->
+                if (!RecoveryControls.offerWebsiteVerification(this)) return@onEach
                 if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@onEach
                 val source = viewModel.getSource() ?: return@onEach
                 if (!WebsiteAccessPolicy.sameSourceHost(source.baseUrl, "https://${failure.host}/")) return@onEach
