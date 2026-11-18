@@ -1302,4 +1302,5 @@
     <string name="smart_sources_unlinked">Source unlinked; original manga remains unchanged</string>
     <string name="j2k_reader_page_error_help">This page couldn’t load. Try again, or find the same chapter on another linked source.</string>
     <string name="j2k_reader_try_another_source">Try another source</string>
+    <string name="j2k_reader_verify_website">Verify website</string>
 </resources>
