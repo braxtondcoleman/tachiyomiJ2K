@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.backup
 import android.content.Context
 import android.net.Uri
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.util.BackupUtil
@@ -32,6 +33,18 @@ class BackupFileValidator(
 
         if (backup.backupManga.isEmpty()) {
             throw IllegalStateException(context.getString(R.string.backup_has_no_manga))
+        }
+
+        // A truncated link record can otherwise silently disappear at restore
+        // time. Validate portable (source ID + URL) links before allowing a
+        // backup to be considered healthy, while accepting missing extensions.
+        backup.backupManga.forEach { manga ->
+            val issues = SmartSourceLinks.backupLinkIssues(manga.memo, manga.source, manga.url)
+            if (issues.isNotEmpty()) {
+                throw IllegalStateException(
+                    "Invalid linked-source metadata for ${manga.title.take(90)}: ${issues.first()}",
+                )
+            }
         }
 
         val sources = backup.backupSources.map { it.sourceId to it.name }.toMap()
