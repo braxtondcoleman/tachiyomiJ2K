@@ -312,8 +312,9 @@ class SettingsLibraryController : SettingsController() {
                                 .setPositiveButton(android.R.string.ok, null).show()
                         } else {
                             val sourceManager: SourceManager = Injekt.get()
+                            val affectedBySource = issues.groupingBy { it.sourceId }.eachCount()
                             val choices: Array<CharSequence> = issues.take(100).map { item ->
-                                "${item.title}\n${sourceManager.getOrStub(item.sourceId).name} · ${item.category.label} · ${item.failureStreak} failed checks"
+                                "${item.title}\n${sourceManager.getOrStub(item.sourceId).name} · ${item.category.label} · ${affectedBySource[item.sourceId] ?: 1} affected titles"
                             }.map { it as CharSequence }.toTypedArray()
                             context.materialAlertDialog()
                                 .setTitle("Source recovery · ${issues.size} titles")
