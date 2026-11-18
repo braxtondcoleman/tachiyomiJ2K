@@ -96,7 +96,7 @@ object DiscoveryDialog {
                                             candidate.manga.url,
                                             candidate.source.id,
                                         ).executeAsBlocking()
-                                        if (existing?.id != null) {
+                                        if (RecommendationOpenGuard.canOpen(existing)) {
                                             existing
                                         } else {
                                             // MangaDetailsController saves/recreates by ID.
@@ -116,7 +116,7 @@ object DiscoveryDialog {
                                             }
                                             db.insertManga(item).executeAsBlocking()
                                             db.getManga(item.url, item.source).executeAsBlocking()
-                                                ?.takeIf { it.id != null && it.id!! > 0L }
+                                                ?.takeIf(RecommendationOpenGuard::canOpen)
                                                 ?: error("Could not save the recommendation for viewing")
                                         }
                                     }
