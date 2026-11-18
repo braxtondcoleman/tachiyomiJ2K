@@ -97,22 +97,33 @@ object UnifiedChapterPlanner {
             .filter { it.chapterUrl.isNotBlank() && it.mangaUrl.isNotBlank() }
             .distinctBy { it.portableId }
         val groups = mutableListOf<MutableList<Variant>>()
+        // Index by chapter number: avoid comparing every chapter with every
+        // other chapter when several installed sources expose thousands of rows.
+        val byNumber = mutableMapOf<Float, MutableList<MutableList<Variant>>>()
         unique.forEach { variant ->
-            val candidates = groups.filter { group ->
-                group.none { it.sourceId == variant.sourceId } &&
-                    group.all { canMerge(it, variant) }
+            val chapterNumber = number(variant)
+            if (chapterNumber == null) {
+                groups.add(mutableListOf(variant))
+            } else {
+                val sameNumber = byNumber.getOrPut(chapterNumber) { mutableListOf() }
+                val candidates = sameNumber.filter { group ->
+                    group.none { it.sourceId == variant.sourceId } &&
+                        group.all { canMerge(it, variant) }
+                }
+                if (candidates.size == 1) {
+                    candidates.single().add(variant)
+                } else {
+                    val newGroup = mutableListOf(variant)
+                    groups.add(newGroup)
+                    sameNumber.add(newGroup)
+                }
             }
-            // Multiple possible targets are ambiguous, not a reason to guess.
-            if (candidates.size == 1) candidates.single().add(variant)
-            else groups.add(mutableListOf(variant))
         }
+        val ambiguousNumbers = byNumber.filterValues { it.size > 1 }.keys
 
         val grouped = groups.map { group ->
             val n = number(group.first())
-            val ambiguous = n != null && groups.count { other ->
-                other !== group && number(other.first()) == n
-            } > 0
-            Row(group.toList(), n, ambiguous)
+            Row(group.toList(), n, n != null && n in ambiguousNumbers)
         }.sortedWith(
             compareByDescending<Row> { it.number != null }
                 .thenByDescending { it.number ?: Float.NEGATIVE_INFINITY }
