@@ -21,7 +21,13 @@ android {
         minSdk = AndroidVersions.minSdk
         targetSdk = AndroidVersions.targetSdk
         applicationId = "eu.kanade.tachiyomi"
-        versionCode = AndroidVersions.versionCode
+        // The package ID and signing certificate stay unchanged across upgrades.
+        // An explicit release version code must be monotonic; never silently
+        // accept an invalid build input.
+        versionCode = System.getenv("J2K_RELEASE_VERSION_CODE")?.let { code ->
+            code.toIntOrNull()?.takeIf { it >= AndroidVersions.versionCode }
+                ?: error("J2K_RELEASE_VERSION_CODE must be an integer >= ${AndroidVersions.versionCode}")
+        } ?: AndroidVersions.versionCode
         versionName = AndroidVersions.versionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
@@ -141,6 +147,8 @@ android {
 }
 
 dependencies {
+    // Pure JVM regressions for source-link backup/restore logic.
+    testImplementation("junit:junit:4.13.2")
     // Compose
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.foundation:foundation:1.11.4")
