@@ -50,6 +50,17 @@ object WebsiteAccessPolicy {
         return newest != clearance(before)
     }
 
+    /** Background source updates and queued chapter prefetches should never
+     * interrupt a healthy page with an interactive verification sheet.
+     */
+    fun shouldOfferOverlay(
+        foreground: Boolean,
+        sameSource: Boolean,
+        sameChapter: Boolean,
+        currentPageFailed: Boolean,
+        chapterFailed: Boolean,
+    ): Boolean = foreground && sameSource && sameChapter && (currentPageFailed || chapterFailed)
+
     fun shouldRetryAutomatically(
         isCurrentReader: Boolean,
         userCanceled: Boolean,
