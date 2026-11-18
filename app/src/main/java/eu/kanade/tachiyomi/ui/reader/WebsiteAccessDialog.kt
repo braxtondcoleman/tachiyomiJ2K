@@ -12,6 +12,9 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import eu.kanade.tachiyomi.util.system.WebViewUtil
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
@@ -41,12 +44,18 @@ object WebsiteAccessDialog {
     ): Boolean {
         val source = activity.viewModel.getSource() ?: return false
         val target = WebsiteAccessPolicy.chooseTarget(source.baseUrl, requestedUrl) ?: return false
-        if (activity.isFinishing || activity.isDestroyed) return false
+        if (activity.isFinishing || activity.isDestroyed ||
+            !WebViewUtil.supportsWebView(activity)
+        ) return false
 
         val cookieManager = CookieManager.getInstance()
         val originalCookies = cookieManager.getCookie(target)
         val handler = Handler(Looper.getMainLooper())
         val dialog = BottomSheetDialog(activity)
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_DESTROY) dialog.dismiss()
+        }
+        activity.lifecycle.addObserver(lifecycleObserver)
         var active = true
         var completed = false
 
@@ -58,6 +67,7 @@ object WebsiteAccessDialog {
         val title = TextView(activity).apply {
             text = "Verify website"
             textSize = 19f
+            contentDescription = "Site verification, interactive browser"
             setPadding(0, 0, 0, 6.dpToPx)
             importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES
         }
@@ -141,7 +151,8 @@ object WebsiteAccessDialog {
 
             override fun onPageFinished(view: WebView, url: String) {
                 if (!active || completed) return
-                status.text = "If you see a checkbox or sign-in, finish it here. This sheet closes automatically when Cloudflare grants access."
+                val website = WebsiteAccessPolicy.host(url) ?: "the source website"
+                status.text = "Website: $website. If a checkbox or sign-in appears, complete it here. This sheet closes when access is confirmed."
                 val latest = cookieManager.getCookie(target)
                 if (WebsiteAccessPolicy.newlyCleared(originalCookies, latest)) finishAndRetry()
             }
@@ -168,6 +179,7 @@ object WebsiteAccessDialog {
             }
         }
         dialog.setOnDismissListener {
+            activity.lifecycle.removeObserver(lifecycleObserver)
             active = false
             handler.removeCallbacks(poll)
             browser.stopLoading()
