@@ -42,6 +42,7 @@ import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
+import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.preference.Preference
 import eu.kanade.tachiyomi.data.preference.PreferenceStore
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
@@ -84,13 +85,23 @@ class BackupCreator(
         var backup: Backup? = null
 
         db.inTransaction {
-            val databaseManga =
-                db.getFavoriteMangas().executeAsBlocking() +
-                    if (flags and BACKUP_READ_MANGA_MASK == BACKUP_READ_MANGA) {
-                        db.getReadNotInLibraryMangas().executeAsBlocking()
-                    } else {
-                        emptyList()
-                    }
+            val favorites = db.getFavoriteMangas().executeAsBlocking()
+            // Preserve source-specific read progress for linked alternatives even
+            // when the user never favorited those source entries separately.
+            // BackupManga stores favorite=false, so restoring them does NOT add
+            // duplicate manga cards to the library.
+            val linkedAlternates = favorites
+                .flatMap { SmartSourceLinks.get(it) }
+                .distinctBy { it.sourceId to it.url }
+                .mapNotNull { db.getManga(it.url, it.sourceId).executeAsBlocking() }
+                .filter { it.id != null && db.getChapters(it).executeAsBlocking().isNotEmpty() }
+            val additionalRead = if (flags and BACKUP_READ_MANGA_MASK == BACKUP_READ_MANGA) {
+                db.getReadNotInLibraryMangas().executeAsBlocking()
+            } else {
+                emptyList()
+            }
+            val databaseManga = (favorites + linkedAlternates + additionalRead)
+                .distinctBy { it.source to it.url }
 
             backup =
                 Backup(

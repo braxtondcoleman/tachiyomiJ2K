@@ -73,7 +73,7 @@ object SmartSourcesDialog {
 
             currentActivity.materialAlertDialog()
                 .setTitle(R.string.smart_sources_title)
-                .setMessage("Searched ${report.searched} installed sources. Ranked matches are suggestions, not verified identity.")
+                // A message alongside setItems hides the list on many Android builds.
                 .setItems(choices) { _, index -> candidate(controller, report.candidates[index]) }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
@@ -154,7 +154,6 @@ object SmartSourcesDialog {
                 }.map { it as CharSequence }.toTypedArray()
             activity.materialAlertDialog()
                 .setTitle(R.string.smart_sources_linked_title)
-                .setMessage(R.string.smart_sources_linked_summary)
                 .setItems(items) { _, which ->
                     val link = links[which]
                     activity.materialAlertDialog()
@@ -172,6 +171,9 @@ object SmartSourcesDialog {
                         }
                         .setNegativeButton(android.R.string.cancel, null)
                         .show()
+                }
+                .setNeutralButton("Unified chapters") { _, _ ->
+                    UnifiedChaptersDialog.show(controller)
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
