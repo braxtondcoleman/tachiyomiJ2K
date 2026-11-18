@@ -36,7 +36,7 @@ object ExtensionIntelligence {
     )
 
     enum class Status {
-        INSTALLED, UPDATE_AVAILABLE, INDEX_NOT_LISTED, MISSING,
+        INSTALLED, UPDATE_AVAILABLE, INDEX_NOT_LISTED, MISSING, INCOMPATIBLE_LIBRARY,
         UNTRUSTED_PACKAGE, LANGUAGE_DISABLED, SOURCE_HIDDEN, UNKNOWN_CATALOGUE,
     }
 
@@ -80,8 +80,11 @@ object ExtensionIntelligence {
         hiddenSourceIds: Set<String>,
         untrustedPackages: Set<String>,
         maxResults: Int = 20,
+        minLibVersion: Double = 1.3,
+        maxLibVersion: Double = 1.6,
     ): List<Candidate> {
         require(maxResults in 1..100)
+        require(minLibVersion <= maxLibVersion)
         val allPackages = (installed.map { it.pkg } + available.map { it.pkg } + untrustedPackages)
             .distinct()
         val installedByPkg = installed.associateBy { it.pkg }
@@ -109,6 +112,8 @@ object ExtensionIntelligence {
             if (score == 0) return@mapNotNull null
             val status = when {
                 pkg in untrustedPackages -> Status.UNTRUSTED_PACKAGE
+                remote != null && (remote.libVersion < minLibVersion || remote.libVersion > maxLibVersion) ->
+                    Status.INCOMPATIBLE_LIBRARY
                 match?.id?.toString() in hiddenSourceIds -> Status.SOURCE_HIDDEN
                 match != null && match.lang !in enabledLanguages -> Status.LANGUAGE_DISABLED
                 local == null -> Status.MISSING
@@ -122,6 +127,7 @@ object ExtensionIntelligence {
                 if (exact) add("Exact source ID in extension metadata")
                 else if (byHost != null) add("Same HTTPS website host; verify manga identity")
                 else if (byName != null) add("Same displayed source name; verify website")
+                if (status == Status.INCOMPATIBLE_LIBRARY) add("Incompatible extension library API; supported: $minLibVersion–$maxLibVersion")
                 if (status == Status.SOURCE_HIDDEN) add("Source is hidden in preferences")
                 if (status == Status.LANGUAGE_DISABLED) add("Source language is disabled")
                 if (status == Status.UPDATE_AVAILABLE) add("Newer extension version is indexed; update requires review")
