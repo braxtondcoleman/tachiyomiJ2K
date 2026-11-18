@@ -18,6 +18,7 @@ object UnifiedChapterPlanner {
         val chapterNumber: Float,
         val scanlator: String? = null,
         val isPrimary: Boolean = false,
+        val isPreferred: Boolean = false,
         val isAvailable: Boolean = true,
         val needsAttention: Boolean = false,
         val read: Boolean = false,
@@ -38,6 +39,7 @@ object UnifiedChapterPlanner {
                 .filter { it.isAvailable }
                 .sortedWith(
                     compareBy<Variant> { it.needsAttention }
+                        .thenByDescending { it.isPreferred }
                         .thenByDescending { it.isPrimary }
                         .thenBy { it.sourceId },
                 ).firstOrNull()
