@@ -76,6 +76,11 @@ android {
             // Different from both upstream J2K and our custom signed release app.
             applicationIdSuffix = ".customj2k.debug"
             versionNameSuffix = "-d${getCommitCount()}"
+            // Used only by the isolated CI upgrade smoke test when an ephemeral
+            // keystore is provided. Ordinary debug builds keep debug signing.
+            if (!System.getenv("J2K_RELEASE_KEYSTORE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("customRelease")
+            }
         }
         getByName("release") {
             applicationIdSuffix = ".customj2k"
