@@ -72,6 +72,11 @@ object WebsiteAccessDialog {
         }
         val browser = WebView(activity).apply {
             setDefaultSettings()
+            // Cloudflare's mobile WebView integration requires cookie support
+            // for its embedded challenge iframe. This applies only to this
+            // temporary user-operated WebView, not all app browsing sessions.
+            cookieManager.setAcceptCookie(true)
+            cookieManager.setAcceptThirdPartyCookies(this, true)
             // No native JS interfaces, file access or privileged web capabilities.
             settings.allowFileAccess = false
             settings.allowContentAccess = false
@@ -125,8 +130,14 @@ object WebsiteAccessDialog {
             }
         }
         browser.webViewClient = object : WebViewClientCompat() {
-            override fun shouldOverrideUrlCompat(view: WebView, url: String): Boolean =
-                WebsiteAccessPolicy.host(url) == null
+            override fun shouldOverrideUrlCompat(view: WebView, url: String): Boolean {
+                // Required by Cloudflare's iframe-based Turnstile implementation.
+                // These internal blank/srcdoc frames aren't external destinations.
+                if (url == "about:blank" || url.startsWith("about:srcdoc") ||
+                    url.startsWith("blob:https://", ignoreCase = true)
+                ) return false
+                return WebsiteAccessPolicy.host(url) == null
+            }
 
             override fun onPageFinished(view: WebView, url: String) {
                 if (!active || completed) return
