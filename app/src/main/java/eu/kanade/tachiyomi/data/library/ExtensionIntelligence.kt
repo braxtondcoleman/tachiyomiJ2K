@@ -87,7 +87,7 @@ object ExtensionIntelligence {
         val installedByPkg = installed.associateBy { it.pkg }
         val availableByPkg = available.associateBy { it.pkg }
         val normalizedName = sourceName?.let(::normalized).orEmpty()
-        val host = sourceHost?.let(::host)
+        val queryHost = sourceHost?.let(::host)
         val indexLoaded = available.isNotEmpty()
         return allPackages.mapNotNull { pkg ->
             val local = installedByPkg[pkg]
@@ -97,7 +97,7 @@ object ExtensionIntelligence {
             val byName = if (normalizedName.length >= 5) {
                 sources.firstOrNull { normalized(it.name) == normalizedName }
             } else null
-            val byHost = if (host != null) sources.firstOrNull { host(it.website) == host } else null
+            val byHost = if (queryHost != null) sources.firstOrNull { host(it.website) == queryHost } else null
             val match = sources.firstOrNull { it.id == sourceId } ?: byName ?: byHost
             val score = when {
                 exact -> 200
