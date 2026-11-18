@@ -20,6 +20,12 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_library_tools"
+        android:icon="@drawable/ic_library_outline_24dp"
+        android:title="Explore &amp; organize"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_more"
         android:icon="@drawable/ic_more_vert_24dp"
         android:title="@string/more"
