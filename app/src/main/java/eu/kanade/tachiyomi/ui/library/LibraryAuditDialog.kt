@@ -120,6 +120,36 @@ object LibraryAuditDialog {
             .show()
     }
 
+    private fun sourceGroups(
+        activity: AppCompatActivity,
+        sources: SourceManager,
+        data: Snapshot,
+        openDetails: (Manga) -> Unit,
+    ) {
+        val all = data.report.allEntries
+            .groupBy { it.sourceId }
+            .toList()
+            .sortedWith(
+                compareByDescending<Pair<Long, List<LibraryAuditPlanner.Entry>>> { (_, mangas) ->
+                    mangas.count { !it.sourceInstalled || it.sourceNeedsAttention || it.activeUpdateFailure }
+                }.thenByDescending { it.second.size },
+            )
+            .take(150)
+        val rows: Array<CharSequence> = all.map { (sourceId, mangas) ->
+            val troubled = mangas.count {
+                !it.sourceInstalled || it.sourceNeedsAttention || it.activeUpdateFailure
+            }
+            "${sources.getOrStub(sourceId).name}\n${mangas.size} library titles · $troubled need attention"
+        }.map { it as CharSequence }.toTypedArray()
+        activity.materialAlertDialog()
+            .setTitle("Bulk source health · ${all.size} sources")
+            .setItems(rows) { _, index ->
+                val (id, mangas) = all[index]
+                listEntries(activity, sources, data, mangas, sources.getOrStub(id).name, openDetails)
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun listEntries(
         activity: AppCompatActivity,
         sources: SourceManager,
