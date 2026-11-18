@@ -114,12 +114,20 @@ class SmartSourceLinksBackupTest {
     }
 
     @Test
+    fun signedNegativeSourceIdsArePortableAndNotConsideredCorrupt() {
+        val alternative = SmartSourceLinks.Link(-123456789L, "/signed-id", "Negative ID")
+        val memo = linkedMemo(alternative)
+        assertEquals(listOf(alternative), SmartSourceLinks.fromMemo(memo))
+        assertEquals(emptyList<String>(), SmartSourceLinks.backupLinkIssues(memo.toString(), 2, "/main"))
+    }
+
+    @Test
     fun restoreGuardRejectsCorruptionBeforeTheDatabaseIsTouched() {
         val corrupt = BackupManga(
             source = 9,
             url = "/one",
             title = "Corrupt",
-            memo = """{"j2k.custom.linkedSources.v1":[{"source":-1,"url":"/bad"}]}""",
+            memo = """{"j2k.custom.linkedSources.v1":[{"url":"/bad"}]}""",
         )
         var threw = false
         try {
