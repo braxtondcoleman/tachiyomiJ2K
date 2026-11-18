@@ -33,10 +33,13 @@ object MangaActionHub {
             items,
             title = "Manga tools",
             subtitle = "Choose what to do with ${manga.title}",
-        ) { _, selected ->
+        ) { sheet, selected ->
             when (choices.firstOrNull { it.ordinal == selected }) {
                 MangaActionPlanner.Action.CHAPTERS -> UnifiedChaptersDialog.show(controller)
-                MangaActionPlanner.Action.FIND_SOURCE -> SmartSourcesDialog.search(controller)
+                MangaActionPlanner.Action.FIND_SOURCE -> {
+                    sheet.dismiss()
+                    SmartSourcesDialog.search(controller)
+                }
                 MangaActionPlanner.Action.LINKED -> SmartSourcesDialog.linked(controller)
                 MangaActionPlanner.Action.RELATED -> {
                     DiscoveryDialog.show(
@@ -47,6 +50,7 @@ object MangaActionHub {
                         controller.presenter.preferences,
                         manga,
                     ) { candidate ->
+                        sheet.dismiss()
                         controller.router.pushController(
                             MangaDetailsController(candidate, true).withFadeTransaction(),
                         )
@@ -55,7 +59,9 @@ object MangaActionHub {
                 MangaActionPlanner.Action.FIX -> SourceRecoveryDialog.show(controller)
                 null -> return@MaterialMenuSheet false
             }
-            true
+            // Keep manga tools available while inspecting chapter versions or
+            // source-health dialogs; entering a different screen dismisses it.
+            false
         }.show()
     }
 }
