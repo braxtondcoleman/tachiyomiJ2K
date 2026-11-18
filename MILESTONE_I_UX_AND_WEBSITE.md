@@ -18,17 +18,17 @@ Everyday manga reading should be intuitive:
 J2K already attempts Cloudflare handling invisibly through its interceptor using a temporary WebView and a shared Android CookieManager. Phase I **does not** fake checkbox clicks or bypass CAPTCHA verification.
 
 - The interceptor detects 403/503 responses with Cloudflare server or \`cf-mitigated: challenge\` evidence.
-- The invisible automatic attempt runs first. **Only if it fails**, a throttled, host-only signal tells the foreground reader to offer an interactive in-app browser sheet for that source.
+- The invisible automatic attempt runs first. **Only if it fails**, or the retry is still a Cloudflare challenge, a throttled, host-only signal can offer the in-app sheet. A short delay confirms the **currently selected page or current chapter actually failed**; a healthy reader is not interrupted by background updates or adjacent-chapter preloads.
 - The sheet opens the installed source's HTTPS website/chapter URL. A URL with external host, credentials, unsafe scheme or nonstandard port is rejected or falls back to the source home, and the WebView has no privileged JavaScript bridge or file access.
 - The reader lets a person finish a Cloudflare checkbox/login if required. A *new* \`cf_clearance\` cookie triggers automatic sheet close + a retry. If the website uses another authentication mechanism, the user can explicitly select **Done & retry**.
 - The same CookieManager is used by the app's network layer. Cancel does nothing. A 120-second cooldown per site reduces repeated prompts from prefetch failures, and the overlay won't open for unrelated site background updates.
 - Page error buttons retry the **same page's own page loader** in pager and webtoon. Automatic failure prompts retry the current errored page or reload the errored chapter, preserving reader location and reading history.
-- This is not guaranteed to solve every website's challenge: Cloudflare can block embedded browsers, challenge policies differ, and expired/missing cookies may require re-verification.
+- This is not guaranteed to solve every website's challenge: Cloudflare can block embedded browsers, challenge policies differ, and expired/missing cookies may require re-verification. The temporary WebView is destroyed when closed or the reader activity ends, and no CAPTCHA checkbox is clicked by automation.
 
 ### Regression tests
 
 - Context-aware manga action menu for favorite, unsaved, local and duplicate choices.
-- Distinguish Cloudflare errors from generic 403 and 429, HTTPS host/cookie safety, same-host restrictions and a genuine new clearance requirement.
+- Distinguish Cloudflare errors from generic 403 and 429, HTTPS host/cookie safety, same-host restrictions, genuine new clearance, canceled operations, and background-request suppression.
 
 ### Release gates
 
