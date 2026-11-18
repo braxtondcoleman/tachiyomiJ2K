@@ -101,6 +101,7 @@ object LibraryAuditDialog {
             "Sources needing attention · ${report.sourcesNeedingAttention.size} titles",
             "No stored chapter counts · ${report.emptyChapterLists.size} titles",
             "Confirmed alternate links · ${report.confirmedLinks} links",
+            "Source-wide audit · ${report.allEntries.map { it.sourceId }.distinct().size} sources",
         )
         activity.materialAlertDialog()
             .setTitle("Library health · ${report.uniqueEntries} titles")
@@ -112,6 +113,7 @@ object LibraryAuditDialog {
                     3 -> listEntries(activity, sources, data, report.sourcesNeedingAttention, "Source health warnings", openDetails)
                     4 -> listEntries(activity, sources, data, report.emptyChapterLists, "No stored chapters", openDetails)
                     5 -> listEntries(activity, sources, data, report.linkedEntries, "Confirmed links", openDetails)
+                    6 -> sourceGroups(activity, sources, data, openDetails)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
