@@ -121,4 +121,11 @@ class ExtensionIntelligenceTest {
         assertEquals(null, ExtensionIntelligence.host("http://repo.example/index.json"))
         assertEquals("repo.example", ExtensionIntelligence.host("https://www.repo.example/index.json"))
     }
+
+    @Test fun incompatibleAvailableExtensionApiIsWarnedNotRecommendedAsUpdate() {
+        val newer = available().copy(libVersion = 1.8)
+        val result = find(available = listOf(newer)).single()
+        assertEquals(ExtensionIntelligence.Status.INCOMPATIBLE_LIBRARY, result.status)
+        assertTrue(result.notes.any { "Incompatible" in it })
+    }
 }
