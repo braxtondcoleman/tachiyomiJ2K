@@ -1,6 +1,6 @@
 # Milestone B — Unified chapters with safe multi-source fallback
 
-Status: **design and acceptance plan only**. Milestone A (#3) must pass CI and restore/upgrade checks before shipping any unified-chapter behavior. This branch is stacked on `feature/milestone-a-library-safety`; neither branch changes `master` until reviewed.
+Status: **opt-in preview and pure chapter matching implemented on draft PR #4; full integrated reader workflow is still in progress.** Milestone A (#3) must pass CI and restore/upgrade checks before shipping any unified-chapter behavior. This branch is stacked on `feature/milestone-a-library-safety`; neither branch changes `master` until reviewed.
 
 ## Goal
 
@@ -54,3 +54,14 @@ Make one manga library item able to show a coherent chapter timeline assembled f
 - User reviews a demo of unified chapter rows and source choice before the behavior is enabled by default.
 
 **Not in Milestone B:** automated link discovery of an unconfirmed series, extension installation, deletion/merging of unrelated library entries, universal progress synchronization across ambiguous matches, and a new separate companion app.
+
+## Current implementation on draft PR #4
+
+- `UnifiedChapterPlanner.kt` conservatively groups positive, finite matching chapter numbers across distinct confirmed sources; it refuses to merge special chapters, volume conflicts, conflicting descriptive titles, or multiple scanlations from one source. Uncertain rows remain separate.
+- `UnifiedChaptersDialog.kt` adds an opt-in preview through **Linked sources → Unified chapters**. Searches up to eight explicitly linked manga with at most three in-flight source requests and ten-second timeouts; missing extensions and failures are reported.
+- Stored chapters open directly in the original reader, preserving their original manga/chapter IDs. Remote chapters not already stored open that source's manga details instead of inserting an unverified database row.
+- Explicit source preferences are saved in manga memo (`j2k.custom.preferredSource.v1`) with portable source ID + manga URL, survive backup restore, and are cleared on unlink; they never silently rewrite reading progress.
+- `UnifiedChapterPlannerTest.kt` contains ten regressions covering ambiguous titles, volume and special exceptions, source duplicates, progress state, preference ranking, numbering gaps, and bounded rows.
+- The existing default chapter list and all source-specific chapters/downloads remain unchanged.
+
+**Still missing for a full Phase B release:** full native chapter-list integration, direct remote chapter opening when uncached, reliably classifying chapter availability versus extension outages, any cross-source progress transfer, CI/device verification, and UI review. The current feature remains opt-in and unreleased.
