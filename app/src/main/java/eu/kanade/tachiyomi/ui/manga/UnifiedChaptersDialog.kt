@@ -137,29 +137,33 @@ object UnifiedChaptersDialog {
                     semaphore.withPermit {
                         try {
                             val source = sources.get(link.sourceId)
-                                ?: return@withPermit Snapshot(emptyList(), "${link.title}: missing extension")
                             val storedManga = db.getManga(link.url, link.sourceId).executeAsBlocking()
                             val storedChapters = storedManga?.let { db.getChapters(it).executeAsBlocking() }.orEmpty()
+                            // Preserve locally stored chapters even when an extension dies.
                             val chapters: List<SChapter> = if (storedChapters.isNotEmpty()) {
                                 storedChapters
                             } else {
+                                if (source == null) {
+                                    return@withPermit Snapshot(emptyList(), "${link.title}: missing extension")
+                                }
                                 withTimeoutOrNull(10_000) {
                                     val remote = storedManga ?: SManga.create().apply {
                                         url = link.url
                                         title = link.title
                                     }
-                                    source.getChapterList(remote)
+                                    val details = if (remote.initialized) remote else source.getMangaDetails(remote)
+                                    source.getChapterList(details)
                                 } ?: return@withPermit Snapshot(emptyList(), "${link.title}: timed out")
                             }
                             Snapshot(chapters.map { chapter ->
                                 target(
                                     chapter, storedManga, link.sourceId, link.url, link.title,
-                                    source.name, false,
+                                    source?.name ?: sources.getOrStub(link.sourceId).name, false,
                                     preferred == SmartSourceLinks.Preferred(link.sourceId, link.url),
-                                    true,
+                                    source != null,
                                     SourceHealthLedger.get(context, link.sourceId)?.needsAttention == true,
                                 )
-                            })
+                            }, warning = if (source == null) "${link.title}: extension missing; showing stored chapters" else null)
                         } catch (cancel: CancellationException) {
                             throw cancel
                         } catch (error: Exception) {
