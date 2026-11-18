@@ -31,8 +31,9 @@ object SmartSourceLinks {
     fun fromMemo(memo: JsonObject): List<Link> =
         (memo[KEY] as? JsonArray).orEmpty().mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
+            // Tachiyomi source IDs are signed Longs; a negative ID may be valid.
             val sourceId = (obj["source"] as? JsonPrimitive)?.longOrNull
-                ?.takeIf { it > 0 } ?: return@mapNotNull null
+                ?: return@mapNotNull null
             val url = (obj["url"] as? JsonPrimitive)?.contentOrNull
                 ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val title = (obj["title"] as? JsonPrimitive)?.contentOrNull ?: url
@@ -69,7 +70,7 @@ object SmartSourceLinks {
             val obj = element as? JsonObject
             val sourceId = (obj?.get("source") as? JsonPrimitive)?.longOrNull
             val url = (obj?.get("url") as? JsonPrimitive)?.contentOrNull
-            if (sourceId == null || sourceId <= 0 || url.isNullOrBlank()) {
+            if (sourceId == null || url.isNullOrBlank()) {
                 errors.add("Invalid alternate-source identity at position ${index + 1}")
             } else if (!seen.add(sourceId to url)) {
                 errors.add("Duplicate alternate-source identity at position ${index + 1}")
