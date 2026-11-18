@@ -111,7 +111,9 @@ object DiscoveryDialog {
                                                 description = candidate.manga.description
                                                 genre = candidate.manga.genre
                                                 thumbnail_url = candidate.manga.thumbnail_url
-                                                initialized = candidate.manga.initialized
+                                                // The search result is not a locally loaded
+                                                // manga yet. Fetch details and chapters on open.
+                                                initialized = false
                                                 favorite = false
                                             }
                                             db.insertManga(item).executeAsBlocking()
