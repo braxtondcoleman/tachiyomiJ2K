@@ -39,6 +39,9 @@ actual_cert="$(printf '%s\n' "$cert_output" |
   head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
 [[ "$actual_cert" =~ ^[a-f0-9]{64}$ ]] || {
   echo "Unable to extract a valid SHA-256 signing certificate from APK" >&2
+  # The certificate is PUBLIC. Showing apksigner labels helps diagnose SDK
+  # output changes without leaking the signing key or any password.
+  printf '%s\n' "$cert_output" | grep -iE '(signer|certificate|sha.?256)' | head -n 12 >&2 || true
   exit 1
 }
 [[ "$actual_cert" == "$expected_cert" ]] || {
