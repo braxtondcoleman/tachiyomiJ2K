@@ -215,26 +215,30 @@ class ExtensionManager(
         }
         val mutInstalledExtensions = installedExtensionsFlow.value.toMutableList()
         var changed = false
-        var hasUpdateCount = 0
         for ((index, installedExt) in mutInstalledExtensions.withIndex()) {
-            val pkgName = installedExt.pkgName
-            val availableExt = availableExtensions.find { it.pkgName == pkgName }
+            val availableExt = availableExtensions.firstOrNull { it.pkgName == installedExt.pkgName }
+            var updated = installedExt
 
-            if (availableExt == null != installedExt.isObsolete) {
-                mutInstalledExtensions[index] = installedExt.copy(isObsolete = true)
-                changed = true
+            // The catalogue absence is not a signer verdict or proof that a
+            // website is dead, but the "not indexed" indicator must both set
+            // AND clear when a repository lists an extension again.
+            val notIndexed = availableExt == null
+            if (updated.isObsolete != notIndexed) {
+                updated = updated.copy(isObsolete = notIndexed)
             }
             if (availableExt != null) {
                 val hasUpdate = installedExt.updateExists(availableExt)
-                if (installedExt.hasUpdate != hasUpdate) {
-                    mutInstalledExtensions[index] =
-                        installedExt.copy(
-                            hasUpdate = hasUpdate,
-                            repoUrl = availableExt.repoUrl,
-                        )
-                    hasUpdateCount++
-                    changed = true
+                if (updated.hasUpdate != hasUpdate || updated.repoUrl != availableExt.repoUrl) {
+                    updated = updated.copy(hasUpdate = hasUpdate, repoUrl = availableExt.repoUrl)
                 }
+            } else if (updated.hasUpdate) {
+                // An index no longer listing an update cannot be used as an
+                // authoritative install target.
+                updated = updated.copy(hasUpdate = false)
+            }
+            if (updated != installedExt) {
+                mutInstalledExtensions[index] = updated
+                changed = true
             }
         }
         if (changed) {

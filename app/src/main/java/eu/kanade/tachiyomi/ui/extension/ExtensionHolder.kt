@@ -105,13 +105,17 @@ class ExtensionHolder(
 
         binding.version.text = infoText.joinToString(" • ")
         binding.lang.text = LocaleHelper.getDisplayName(extension.lang)
-        binding.warning.text =
-            when {
-                (extension as? Extension.Installed)?.isObsolete == true ->
-                    itemView.context.getString(R.string.orphaned)
-                extension.isNsfw -> itemView.context.getString(R.string.nsfw_short)
-                else -> ""
-            }.uppercase(Locale.ROOT)
+        // Keep signer trust, catalogue listing, available updates and NSFW as
+        // separate, meaningful warnings rather than collapsing them to one tag.
+        binding.warning.text = buildList {
+            if (extension is Extension.Untrusted) add("SIGNATURE REVIEW")
+            if (extension is Extension.Available &&
+                (extension.libVersion < ExtensionLoader.LIB_VERSION_MIN || extension.libVersion > ExtensionLoader.LIB_VERSION_MAX)
+            ) add("INCOMPATIBLE API")
+            if ((extension as? Extension.Installed)?.isObsolete == true) add("NOT INDEXED")
+            if ((extension as? Extension.Installed)?.hasUpdate == true) add("UPDATE AVAILABLE")
+            if (extension.isNsfw) add(itemView.context.getString(R.string.nsfw_short))
+        }.joinToString(" · ").uppercase(Locale.ROOT)
         binding.installProgress.progress = item.sessionProgress ?: 0
         binding.installProgress.isVisible = item.sessionProgress != null
         binding.cancelButton.isVisible = item.sessionProgress != null

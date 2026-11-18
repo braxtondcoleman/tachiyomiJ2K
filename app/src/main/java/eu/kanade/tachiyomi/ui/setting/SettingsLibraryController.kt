@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.setting
 
 import android.content.Intent
+import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
@@ -26,6 +27,8 @@ import eu.kanade.tachiyomi.ui.library.LibraryPresenter
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
+import eu.kanade.tachiyomi.ui.extension.ExtensionIntelligenceDialog
+import eu.kanade.tachiyomi.ui.source.BrowseController
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
@@ -295,6 +298,21 @@ class SettingsLibraryController : SettingsController() {
                             .setMessage(report.take(12_000))
                             .setPositiveButton(android.R.string.ok, null)
                             .show()
+                    }
+                }
+
+                preference {
+                    key = "j2k_extension_intelligence"
+                    isPersistent = false
+                    title = "Extension intelligence"
+                    summary = "Search configured extension indexes, review updates, compatibility and installer status"
+                    onClick {
+                        val current = activity as? AppCompatActivity
+                        if (current != null) {
+                            ExtensionIntelligenceDialog.show(current) {
+                                router.pushController(BrowseController().withFadeTransaction())
+                            }
+                        }
                     }
                 }
 
