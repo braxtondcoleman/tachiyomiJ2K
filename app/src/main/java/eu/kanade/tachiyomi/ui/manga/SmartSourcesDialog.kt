@@ -7,6 +7,8 @@ import eu.kanade.tachiyomi.data.database.models.MangaImpl
 import eu.kanade.tachiyomi.data.library.SmartSourceFinder
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
+import eu.kanade.tachiyomi.data.library.SourceRecoveryPlanner
+import eu.kanade.tachiyomi.data.library.AlternativeTitles
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
@@ -73,7 +75,6 @@ object SmartSourcesDialog {
 
             currentActivity.materialAlertDialog()
                 .setTitle(R.string.smart_sources_title)
-                // A message alongside setItems hides the list on many Android builds.
                 .setItems(choices) { _, index -> candidate(controller, report.candidates[index]) }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
@@ -82,41 +83,79 @@ object SmartSourcesDialog {
 
     private fun candidate(controller: MangaDetailsController, result: SmartSourceFinder.Candidate) {
         val activity = controller.activity ?: return
+        val original = controller.presenter.manga
+        val titleMatch = maxOf(
+            SmartSourceFinder.titleScore(original.originalTitle, result.manga.title),
+            AlternativeTitles.fromDescription(original.originalDescription).take(8)
+                .maxOfOrNull { SmartSourceFinder.titleScore(it, result.manga.title) } ?: 0,
+        )
+        val firstAuthor = original.originalAuthor?.takeIf { it.isNotBlank() }
+        val secondAuthor = result.manga.author?.takeIf { it.isNotBlank() }
+        val mismatch = firstAuthor != null && secondAuthor != null &&
+            SmartSourceFinder.titleScore(firstAuthor, secondAuthor) < 75
+        // Source chapter COUNT is not evidence of matching chapter IDENTITY.
+        // Do not pass a count as verified overlap.
+        val judgement = SourceRecoveryPlanner.recommend(
+            titleScore = titleMatch,
+            originalTitle = original.originalTitle,
+            conflictingAuthors = mismatch,
+            matchingNumberedChapters = null,
+            sourceAvailable = controller.presenter.sourceManager.get(result.source.id) != null,
+        )
+        val originalCount = controller.presenter.chapters.size
         val details = buildString {
             appendLine(result.manga.title)
             appendLine("Source: ${result.source.name}")
-            appendLine("Relevance score: ${result.score}")
+            appendLine("Search relevance: ${result.score}; title match: $titleMatch")
+            appendLine("Original stored chapters: $originalCount")
+            appendLine("Candidate chapters: ${result.chapterCount?.toString() ?: "unknown"}")
+            appendLine("Review status: ${judgement.confidence}")
+            judgement.reasons.forEach { appendLine("• $it") }
             appendLine(result.note)
             appendLine()
-            append("Linking keeps both originals and their reading history separate.")
+            appendLine("Different chapter counts cannot prove equal chapters. Check identity before linking.")
+            append("Linking adds a reversible source association; it does NOT migrate or rewrite progress.")
         }
-        activity.materialAlertDialog()
-            .setTitle(R.string.smart_sources_candidate)
+        val dialog = activity.materialAlertDialog()
+            .setTitle("Replacement candidate preview")
             .setMessage(details)
             .setPositiveButton(R.string.smart_sources_open) { _, _ ->
                 open(controller, result.source.id, result.manga.url, result.manga.title, result.manga)
             }
-            .setNeutralButton(R.string.smart_sources_link) { _, _ ->
-                val primaryId = controller.presenter.manga.id
-                if (primaryId == null || !controller.presenter.manga.favorite) {
-                    controller.activity?.toast(R.string.smart_sources_favorite_first)
-                    return@setNeutralButton
-                }
-                controller.viewScope.launch {
-                    val linked = withContext(Dispatchers.IO) {
-                        SmartSourceLinks.add(
-                            controller.presenter.db,
-                            primaryId,
-                            SmartSourceLinks.Link(result.source.id, result.manga.url, result.manga.title),
-                        )
-                    }
-                    controller.activity?.toast(
-                        if (linked) R.string.smart_sources_linked else R.string.smart_sources_already_linked,
-                    )
-                }
-            }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        if (judgement.mayLink) {
+            dialog.setNeutralButton("Review & link") { _, _ ->
+                activity.materialAlertDialog()
+                    .setTitle("Confirm same manga")
+                    .setMessage(
+                        "Do both titles represent the SAME series?\n\n" +
+                            "Original: ${original.title}\nCandidate: ${result.manga.title}\n\n" +
+                            "No source or progress will be replaced. This creates a removable alternate link.",
+                    )
+                    .setPositiveButton("Confirm link") { _, _ ->
+                        val primaryId = controller.presenter.manga.id
+                        if (primaryId == null || !controller.presenter.manga.favorite) {
+                            controller.activity?.toast(R.string.smart_sources_favorite_first)
+                            return@setPositiveButton
+                        }
+                        controller.viewScope.launch {
+                            val linked = withContext(Dispatchers.IO) {
+                                SmartSourceLinks.add(
+                                    controller.presenter.db,
+                                    primaryId,
+                                    SmartSourceLinks.Link(result.source.id, result.manga.url, result.manga.title),
+                                )
+                            }
+                            controller.activity?.toast(
+                                if (linked) R.string.smart_sources_linked else R.string.smart_sources_already_linked,
+                            )
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+        dialog.show()
     }
 
     fun linked(controller: MangaDetailsController) {

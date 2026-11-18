@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.library.LibraryUpdateHistory
+import eu.kanade.tachiyomi.data.library.SourceRecoveryInbox
 import eu.kanade.tachiyomi.data.library.SmartSourceFinder
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
@@ -24,10 +25,14 @@ import eu.kanade.tachiyomi.ui.category.CategoryController
 import eu.kanade.tachiyomi.ui.library.LibraryPresenter
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
+import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
@@ -290,6 +295,60 @@ class SettingsLibraryController : SettingsController() {
                             .setMessage(report.take(12_000))
                             .setPositiveButton(android.R.string.ok, null)
                             .show()
+                    }
+                }
+
+                preference {
+                    key = "j2k_source_recovery_inbox"
+                    isPersistent = false
+                    title = "Source recovery inbox"
+                    summary = "Actionable chapter-update failures and source-specific recovery"
+                    onClick {
+                        val issues = SourceRecoveryInbox.list(context)
+                        if (issues.isEmpty()) {
+                            context.materialAlertDialog()
+                                .setTitle("Source recovery inbox")
+                                .setMessage("No unresolved per-title failures yet. Run a library chapter update to collect source-specific recovery results. Old text-only update history remains available below.")
+                                .setPositiveButton(android.R.string.ok, null).show()
+                        } else {
+                            val sourceManager: SourceManager = Injekt.get()
+                            val affectedBySource = issues.groupingBy { it.sourceId }.eachCount()
+                            val choices: Array<CharSequence> = issues.take(100).map { item ->
+                                "${item.title}\n${sourceManager.getOrStub(item.sourceId).name} · ${item.category.label} · ${affectedBySource[item.sourceId] ?: 1} affected titles"
+                            }.map { it as CharSequence }.toTypedArray()
+                            context.materialAlertDialog()
+                                .setTitle("Source recovery · ${issues.size} titles")
+                                .setItems(choices) { _, index ->
+                                    val issue = issues[index]
+                                    context.materialAlertDialog()
+                                        .setTitle(issue.title)
+                                        .setMessage(
+                                            "Source: ${sourceManager.getOrStub(issue.sourceId).name}\n" +
+                                                "Issue: ${issue.category.label}\n" +
+                                                "Last result: ${issue.detail}\n" +
+                                                "Consecutive failed checks: ${issue.failureStreak}\n" +
+                                                "Recent attempts: ${issue.history.joinToString(" → ")}\n\n" +
+                                                "Opening the manga lets you retry, compare confirmed sources, or find alternatives without migrating automatically.",
+                                        )
+                                        .setPositiveButton("Open manga") { _, _ ->
+                                            viewScope.launch {
+                                                val manga = withContext(Dispatchers.IO) {
+                                                    db.getManga(issue.mangaUrl, issue.sourceId).executeAsBlocking()
+                                                }
+                                                if (manga != null) {
+                                                    router.pushController(MangaDetailsController(manga, true).withFadeTransaction())
+                                                } else {
+                                                    context.materialAlertDialog()
+                                                        .setMessage("This title is no longer in your database. Nothing was changed.")
+                                                        .setPositiveButton(android.R.string.ok, null).show()
+                                                }
+                                            }
+                                        }
+                                        .setNegativeButton(android.R.string.cancel, null).show()
+                                }
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show()
+                        }
                     }
                 }
 

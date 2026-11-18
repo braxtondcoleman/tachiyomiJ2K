@@ -1222,6 +1222,7 @@ class MangaDetailsController :
         when (item.itemId) {
             R.id.action_smart_sources -> SmartSourcesDialog.search(this)
             R.id.action_linked_sources -> SmartSourcesDialog.linked(this)
+            R.id.action_source_recovery -> SourceRecoveryDialog.show(this)
             R.id.action_unified_chapters -> UnifiedChaptersDialog.show(this)
             R.id.action_edit -> openEditMangaDialog()
             R.id.action_open_in_web_view -> openInWebView()

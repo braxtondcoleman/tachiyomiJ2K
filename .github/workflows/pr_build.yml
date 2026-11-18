@@ -2,7 +2,7 @@ name: Pull request Android build
 
 on:
   pull_request:
-    branches: [master, feature/reliable-library-updates, feature/sy-multi-source-manga, feature/milestone-a-library-safety, feature/milestone-b-unified-chapters, feature/milestone-c-source-recovery]
+    branches: [master, feature/reliable-library-updates, feature/sy-multi-source-manga, feature/milestone-a-library-safety, feature/milestone-b-unified-chapters, feature/milestone-c-source-recovery, feature/milestone-d-reader-continuity, feature/milestone-e-extension-intelligence]
   workflow_dispatch:
 
 permissions:
