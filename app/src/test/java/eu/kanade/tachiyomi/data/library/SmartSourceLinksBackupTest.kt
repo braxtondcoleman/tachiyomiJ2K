@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.database.models.MangaImpl
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -79,6 +80,28 @@ class SmartSourceLinksBackupTest {
         assertEquals(listOf(existing, incoming), SmartSourceLinks.fromMemo(restored))
         assertEquals(JsonPrimitive("must survive"), restored["some.extension.memo"])
         assertEquals(restored, SmartSourceLinks.mergeOnRestore(restored, backupMemo))
+    }
+
+    @Test
+    fun sourceMetadataRefreshMustNotEraseConfirmedLinkedSources() {
+        val link = SmartSourceLinks.Link(66, "/alt", "Alternate")
+        val stored = MangaImpl().apply {
+            url = "/primary"
+            source = 55
+            title = "Same Manga"
+            favorite = false
+            memo = linkedMemo(link)
+        }
+        val refreshed = MangaImpl().apply {
+            url = "/primary"
+            source = 55
+            title = "Same Manga"
+            favorite = false
+            memo = JsonObject(mapOf("site.new-key" to JsonPrimitive("new metadata")))
+        }
+        stored.copyFrom(refreshed)
+        assertEquals(listOf(link), SmartSourceLinks.get(stored))
+        assertEquals(JsonPrimitive("new metadata"), stored.memo["site.new-key"])
     }
 
     @Test
