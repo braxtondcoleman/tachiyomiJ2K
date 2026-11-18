@@ -76,28 +76,38 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_manga_tools"
+        android:title="Explore &amp; fix manga"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_discover_related"
         android:title="Discover similar manga"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_smart_sources"
         android:title="@string/smart_sources_search"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_linked_sources"
         android:title="@string/smart_sources_linked_title"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_source_recovery"
         android:title="Source problem? Fix it"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_unified_chapters"
         android:title="Unified chapters"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item
