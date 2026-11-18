@@ -10,6 +10,8 @@ import eu.kanade.tachiyomi.data.library.SourceRecoveryInbox
 import eu.kanade.tachiyomi.data.library.SourceRecoveryPlanner
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.SManga
+import androidx.appcompat.app.AppCompatActivity
+import eu.kanade.tachiyomi.ui.extension.ExtensionIntelligenceDialog
 import eu.kanade.tachiyomi.ui.source.BrowseController
 import eu.kanade.tachiyomi.ui.source.browse.BrowseSourceController
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
@@ -53,6 +55,7 @@ object SourceRecoveryDialog {
             "Retry this manga's chapter update",
             "Browse unified chapters",
             "Open source / extension manager",
+            "Diagnose extension and find compatible source",
         )
         activity.materialAlertDialog()
             .setTitle("Source recovery")
@@ -64,9 +67,19 @@ object SourceRecoveryDialog {
                     3 -> retry(controller)
                     4 -> UnifiedChaptersDialog.show(controller)
                     5 -> openSourceTools(controller)
+                    6 -> showExtensionIntelligence(controller)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun showExtensionIntelligence(controller: MangaDetailsController) {
+        val activity = controller.activity as? AppCompatActivity ?: return
+        val sourceId = controller.presenter.manga.source
+        val sourceName = controller.presenter.sourceManager.getOrStub(sourceId).name
+        ExtensionIntelligenceDialog.show(activity, sourceId, sourceName) {
+            controller.router.pushController(BrowseController().withFadeTransaction())
+        }
     }
 
     private fun openSourceTools(controller: MangaDetailsController) {
