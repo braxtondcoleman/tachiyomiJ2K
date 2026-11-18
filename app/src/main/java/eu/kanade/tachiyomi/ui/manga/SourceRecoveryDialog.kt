@@ -7,10 +7,16 @@ import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
 import eu.kanade.tachiyomi.data.library.SourceRecoveryInbox
 import eu.kanade.tachiyomi.data.library.SourceRecoveryPlanner
+import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.ui.source.BrowseController
+import eu.kanade.tachiyomi.ui.source.browse.BrowseSourceController
+import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.DateFormat
+import java.util.Date
 
 /**
  * Recovery is user-directed: no speculative source probes, automatic extension
@@ -33,6 +39,7 @@ object SourceRecoveryDialog {
             "Find possible replacement sources",
             "Retry this manga's chapter update",
             "Browse unified chapters",
+            "Open source / extension manager",
         )
         activity.materialAlertDialog()
             .setTitle("Source recovery")
@@ -43,9 +50,20 @@ object SourceRecoveryDialog {
                     2 -> SmartSourcesDialog.search(controller)
                     3 -> retry(controller)
                     4 -> UnifiedChaptersDialog.show(controller)
+                    5 -> openSourceTools(controller)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun openSourceTools(controller: MangaDetailsController) {
+        val source = controller.presenter.sourceManager.get(controller.presenter.manga.source)
+        if (source is CatalogueSource) {
+            controller.router.pushController(BrowseSourceController(source).withFadeTransaction())
+        } else {
+            // Extension discovery only; never auto-install an APK.
+            controller.router.pushController(BrowseController().withFadeTransaction())
+        }
     }
 
     private fun showStatus(controller: MangaDetailsController) {
@@ -61,6 +79,8 @@ object SourceRecoveryDialog {
             appendLine("Issue: ${if (!installed) SourceRecoveryPlanner.FailureKind.MISSING_EXTENSION.label else if (record?.active == true) failure.label else "No active failure recorded"}")
             if (record != null) {
                 appendLine("Update attempts logged: ${record.attempts}")
+                if (record.lastFailureAt > 0) appendLine("Last failure: ${DateFormat.getDateTimeInstance().format(Date(record.lastFailureAt))}")
+                if (record.lastSuccessAt > 0) appendLine("Last successful check: ${DateFormat.getDateTimeInstance().format(Date(record.lastSuccessAt))}")
                 appendLine("Failed attempts in a row: ${record.failureStreak}")
                 if (record.active) appendLine("Last error: ${record.detail}")
                 if (record.history.isNotEmpty()) appendLine("Recent checks: ${record.history.joinToString(" → ")}")
