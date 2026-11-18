@@ -92,7 +92,7 @@ object UnifiedChapterPlanner {
     }
 
     fun reconcile(input: List<Variant>, maxRows: Int = 150): Result {
-        require(maxRows in 1..1000)
+        require(maxRows in 1..10000)
         val unique = input
             .filter { it.chapterUrl.isNotBlank() && it.mangaUrl.isNotBlank() }
             .distinctBy { it.portableId }

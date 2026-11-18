@@ -30,8 +30,9 @@ import timber.log.Timber
  * progress synchronization, or changes to existing downloads.
  */
 object UnifiedChaptersDialog {
-    private const val MAX_LINKS = 8
-    private const val MAX_ROWS = 150
+    private const val MAX_LINKS = 24
+    private const val PAGE_SIZE = 150
+    private const val MAX_INDEXED_ROWS = 10000
 
     private data class Target(
         val variant: UnifiedChapterPlanner.Variant,
@@ -81,37 +82,75 @@ object UnifiedChaptersDialog {
                     .setPositiveButton(android.R.string.ok, null).show()
                 return@launch
             }
-            val result = UnifiedChapterPlanner.reconcile(report.targets.map { it.variant }, MAX_ROWS)
+            val result = UnifiedChapterPlanner.reconcile(report.targets.map { it.variant }, MAX_INDEXED_ROWS)
             val byId = report.targets.associateBy { it.variant.portableId }
-            val summary = buildString {
-                appendLine("Read-only view: ${result.matchedRows} merged chapter rows.")
-                if (result.uncertainRows > 0) appendLine("${result.uncertainRows} uncertain rows kept separate.")
-                if (result.possibleMissingNumbers.isNotEmpty()) {
-                    appendLine("Possible numbering gaps: ${result.possibleMissingNumbers.take(10).joinToString()}")
-                }
-                if (report.extraLinks > 0) appendLine("${report.extraLinks} links not scanned; limit $MAX_LINKS.")
-                report.warnings.take(4).forEach { appendLine("⚠ $it") }
-                if (result.rows.size == MAX_ROWS) appendLine("Showing up to $MAX_ROWS rows.")
-                append("Choose a row to see its original source variants.")
+            showPage(controller, id, report, result, byId, 0)
+        }
+    }
+
+    private fun showPage(
+        controller: MangaDetailsController,
+        mangaId: Long,
+        report: Report,
+        result: UnifiedChapterPlanner.Result,
+        byId: Map<Triple<Long, String, String>, Target>,
+        requestedPage: Int,
+    ) {
+        val activity = controller.activity ?: return
+        val lastPage = ((result.rows.size - 1).coerceAtLeast(0) / PAGE_SIZE)
+        val page = requestedPage.coerceIn(0, lastPage)
+        val start = page * PAGE_SIZE
+        val currentRows = result.rows.drop(start).take(PAGE_SIZE)
+        val summary = buildString {
+            appendLine("Unified chapters: ${result.matchedRows} matched rows; page ${page + 1} of ${lastPage + 1}.")
+            if (result.uncertainRows > 0) appendLine("${result.uncertainRows} uncertain rows kept separate.")
+            if (result.possibleMissingNumbers.isNotEmpty()) {
+                appendLine("Possible numbering gaps: ${result.possibleMissingNumbers.take(10).joinToString()}")
             }
-            val choices: Array<CharSequence> = result.rows.map { row ->
-                val tag = when {
+            if (report.extraLinks > 0) appendLine("${report.extraLinks} linked sources not scanned (limit $MAX_LINKS).")
+            report.warnings.take(4).forEach { appendLine("⚠ $it") }
+            if (result.rows.size == MAX_INDEXED_ROWS) appendLine("First $MAX_INDEXED_ROWS rows indexed.")
+            append("Select a chapter to choose its actual source; changes to progress stay source-specific.")
+        }
+        val options: Array<CharSequence> = (
+            currentRows.map { row ->
+                val state = when {
                     row.ambiguous -> " ? uncertain"
                     row.isMerged -> " ✓ ${row.variants.size} sources"
                     else -> ""
                 }
-                val progressTag = if (row.isRead) " · read" else if (row.isBookmarked) " · bookmarked" else ""
-                "${row.variants.first().chapterName}$tag$progressTag"
-            }.map { it as CharSequence }.toTypedArray()
-            currentActivity.materialAlertDialog()
-                .setTitle("Unified chapters — preview")
-                .setMessage(summary)
-                .setItems(choices) { _, index ->
-                    choose(controller, id, result.rows[index], byId)
+                val progress = if (row.isRead) " · read" else if (row.isBookmarked) " · bookmarked" else ""
+                "${row.variants.first().chapterName}$state$progress"
+            } + "ⓘ Coverage summary, source errors and gaps"
+        ).map { it as CharSequence }.toTypedArray()
+        val dialog = activity.materialAlertDialog()
+            .setTitle("Unified chapters · ${page + 1}/${lastPage + 1}")
+            .setItems(options) { _, position ->
+                if (position == currentRows.size) {
+                    activity.materialAlertDialog()
+                        .setTitle("Unified chapter coverage")
+                        .setMessage(summary)
+                        .setPositiveButton("Back to chapters") { _, _ ->
+                            showPage(controller, mangaId, report, result, byId, page)
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                } else {
+                    choose(controller, mangaId, currentRows[position], byId)
                 }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+        if (page < lastPage) {
+            dialog.setNeutralButton("Older") { _, _ ->
+                showPage(controller, mangaId, report, result, byId, page + 1)
+            }
         }
+        if (page > 0) {
+            dialog.setPositiveButton("Newer") { _, _ ->
+                showPage(controller, mangaId, report, result, byId, page - 1)
+            }
+        }
+        dialog.show()
     }
 
     private suspend fun load(controller: MangaDetailsController, id: Long, context: Context): Report =
@@ -241,7 +280,6 @@ object UnifiedChaptersDialog {
         }.map { it as CharSequence }.toTypedArray()
         activity.materialAlertDialog()
             .setTitle(row.variants.first().chapterName)
-            .setMessage("Choose the actual source. Reading progress stays with its original chapter.")
             .setItems(options) { _, which ->
                 val selected = targets[which]
                 activity.materialAlertDialog()

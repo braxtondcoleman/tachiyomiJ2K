@@ -1,6 +1,6 @@
 # Milestone B — Unified chapters with safe multi-source fallback
 
-Status: **opt-in preview and pure chapter matching implemented on draft PR #4; full integrated reader workflow is still in progress.** Milestone A (#3) must pass CI and restore/upgrade checks before shipping any unified-chapter behavior. This branch is stacked on `feature/milestone-a-library-safety`; neither branch changes `master` until reviewed.
+Status: **opt-in unified chapter browser and direct native reading implemented on draft PR #4; automated checks and phone acceptance are still required.** Milestone A (#3) must pass CI and restore/upgrade checks before shipping any unified-chapter behavior. This branch is stacked on `feature/milestone-a-library-safety`; neither branch changes `master` until reviewed.
 
 ## Goal
 
@@ -65,3 +65,13 @@ Make one manga library item able to show a coherent chapter timeline assembled f
 - The existing default chapter list and all source-specific chapters/downloads remain unchanged.
 
 **Still missing for a full Phase B release:** full native chapter-list integration, direct remote chapter opening when uncached, reliably classifying chapter availability versus extension outages, any cross-source progress transfer, CI/device verification, and UI review. The current feature remains opt-in and unreleased.
+
+## Phase B implementation handoff — updated
+
+The normal manga details menu now has **Unified chapters**. The opt-in browser reads a maximum of **24 user-confirmed linked manga sources**, at most three concurrently, and exposes their reconciled chapter list in pages of **150** (up to 10,000 indexed rows). It marks uncertain matches instead of deleting them. Existing manga details, normal chapter list, and downloaded chapters remain unchanged.
+
+Selecting a chapter displays all underlying source variants with provenance. The recommendation prefers an available, healthy, explicitly preferred source, falling back to the original when appropriate. Selection is always user-confirmed; no automatic source migration. A selected uncached alternate opens *directly in the native reader* through `UnifiedChapterReadThrough`: it creates only the selected nonfavorite source manga/one chapter row, never runs destructive chapter synchronization, and does not copy read/bookmark/page state across sources. Existing chapter data is reused unchanged.
+
+`BackupCreator` now includes locally stored chapters for linked, nonfavorite alternate manga when creating backups, so per-source reading progress and history can be recovered even if the user has not independently favorited those alternate copies. `BackupRestorer` preserves any existing favorite rather than demoting it when the backup includes a nonfavorite linked source. Protobuf backup fixtures cover the portable source links and linked nonfavorite chapter state.
+
+**Current limitations / gates:** Android and emulator CI must pass on the latest commit; real phone restore and signing tests remain unverified. The unified list is an opt-in, paginated browser rather than an inline replacement of the original source chapter adapter. It does not perform automatic cross-source chapter continuation, progress transfer between unmatched chapters, automatic extension installation, or silent source switching. These must not be claimed tested or release-ready. No changes to `master` or installed APKs.
