@@ -735,6 +735,7 @@ class PagerPageHolder(
             } else {
                 viewer.activity.viewModel.getChapterUrl(page.chapter.chapter)
             }
+        errorLayout?.retryPageAction = { page.chapter.pageLoader?.retryPage(page) }
         return errorLayout!!.configureView(imageUrl)
     }
 

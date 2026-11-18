@@ -1220,6 +1220,7 @@ class MangaDetailsController :
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_manga_tools -> MangaActionHub.show(this)
             R.id.action_discover_related -> {
                 val host = activity as? androidx.appcompat.app.AppCompatActivity
                 if (host != null) {

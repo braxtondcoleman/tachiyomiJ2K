@@ -10,11 +10,12 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
-        android:text="@string/decode_image_error"
+        android:text="@string/j2k_reader_page_error_help"
         android:textAppearance="?attr/textAppearanceBodyMedium" />
 
     <eu.kanade.tachiyomi.ui.reader.viewer.ReaderButton
         android:id="@+id/action_retry"
+        android:minHeight="48dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
@@ -22,10 +23,29 @@
 
     <eu.kanade.tachiyomi.ui.reader.viewer.ReaderButton
         android:id="@+id/action_open_in_web_view"
+        android:minHeight="48dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
         android:text="@string/open_in_webview"
+        android:visibility="gone" />
+
+    <eu.kanade.tachiyomi.ui.reader.viewer.ReaderButton
+        android:id="@+id/action_verify_website"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:layout_margin="8dp"
+        android:text="@string/j2k_reader_verify_website"
+        android:visibility="gone" />
+
+    <eu.kanade.tachiyomi.ui.reader.viewer.ReaderButton
+        android:id="@+id/action_try_alternate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:layout_margin="8dp"
+        android:text="@string/j2k_reader_try_another_source"
         android:visibility="gone" />
 
 </eu.kanade.tachiyomi.ui.reader.viewer.ReaderErrorView>

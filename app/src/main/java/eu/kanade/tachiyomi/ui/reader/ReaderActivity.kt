@@ -86,6 +86,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.library.ReaderContinuityPlanner
+import eu.kanade.tachiyomi.network.interceptor.CloudflareChallengeSignal
 import eu.kanade.tachiyomi.data.preference.asImmediateFlowIn
 import eu.kanade.tachiyomi.data.preference.toggle
 import eu.kanade.tachiyomi.data.track.TrackService
@@ -217,6 +218,9 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
      */
     private var bottomSheet: BottomSheetDialog? = null
 
+    private var websiteVerificationOpen = false
+    private var selectedPageForWebsite: ReaderPage? = null
+
     var sheetManageNavColor = false
 
     private var themeLightStatusBars = false
@@ -323,6 +327,47 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
         super.onCreate(savedInstanceState)
         binding = ReaderActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // The normal invisible Cloudflare handler always runs first. Only a
+        // confirmed failure from the current website opens human verification.
+        // Unrelated background library/source failures cannot open an overlay.
+        CloudflareChallengeSignal.failures
+            .onEach { failure ->
+                if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@onEach
+                val source = viewModel.getSource() ?: return@onEach
+                if (!WebsiteAccessPolicy.sameSourceHost(source.baseUrl, "https://${failure.host}/")) return@onEach
+                val currentChapterId = viewModel.getCurrentChapter()?.chapter?.id ?: return@onEach
+                // A background update or an adjacent-chapter preload can hit a
+                // challenge on the same host. Don't interrupt a healthy page.
+                // Allow the failed OkHttp request to update the page/chapters
+                // before deciding whether interactive verification is needed.
+                binding.root.postDelayed({
+                    if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@postDelayed
+                    val chapter = viewModel.getCurrentChapter() ?: return@postDelayed
+                    if (chapter.chapter.id != currentChapterId) return@postDelayed
+                    val active = selectedPageForWebsite
+                        ?.takeIf { it.chapter.chapter.id == currentChapterId }
+                    val currentPageFailed = active?.status == Page.State.ERROR
+                    val chapterFailed = chapter.state is ReaderChapter.State.Error
+                    if (WebsiteAccessPolicy.shouldOfferOverlay(
+                            foreground = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED),
+                            sameSource = WebsiteAccessPolicy.sameSourceHost(
+                                viewModel.getSource()?.baseUrl.orEmpty(), "https://${failure.host}/",
+                            ),
+                            sameChapter = chapter.chapter.id == currentChapterId,
+                            currentPageFailed = currentPageFailed,
+                            chapterFailed = chapterFailed,
+                        )
+                    ) {
+                        val url = if (currentPageFailed) active?.imageUrl
+                            ?: viewModel.getChapterUrl()
+                        else viewModel.getChapterUrl()
+                        requestWebsiteVerification(url ?: source.baseUrl)
+                    }
+                }, 900L)
+            }
+            .launchIn(scope)
+
         withStyledAttributes(null, intArrayOf(android.R.attr.windowLightStatusBar)) {
             themeLightStatusBars = getBoolean(0, false)
         }
@@ -885,6 +930,58 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
     /** Reader-to-reader handoff after the user explicitly selects an alternate.
      * Save this chapter's source-specific state before closing its reader.
      */
+    /**
+     * Temporary in-reader verification, never a silent or simulated CAPTCHA
+     * click. On success the existing source's own page loader is retried.
+     */
+    fun requestWebsiteVerification(
+        url: String?,
+        retryAction: (() -> Unit)? = null,
+    ) {
+        if (websiteVerificationOpen || isFinishing || isDestroyed) return
+        val originChapterId = viewModel.getCurrentChapter()?.chapter?.id ?: return
+        val originSourceId = viewModel.manga?.source
+        websiteVerificationOpen = true
+        val opened = WebsiteAccessDialog.show(
+            this,
+            url,
+            onRetry = retry@{
+                // Never retry a stale page if navigation changed while the
+                // verification WebView was visible.
+                if (viewModel.getCurrentChapter()?.chapter?.id != originChapterId ||
+                    viewModel.manga?.source != originSourceId
+                ) return@retry
+                retryAction?.invoke() ?: retryCurrentPageAfterWebsite()
+            },
+            onDismiss = { websiteVerificationOpen = false },
+        )
+        if (!opened) {
+            websiteVerificationOpen = false
+            materialAlertDialog()
+                .setTitle("Website verification unavailable")
+                .setMessage("This source doesn't have a usable HTTPS website. Try another linked source or check the extension.")
+                .setPositiveButton(android.R.string.ok, null).show()
+        }
+    }
+
+    private fun retryCurrentPageAfterWebsite() {
+        // The request may not become ERROR until after the interceptor returns.
+        // Preserve the viewer and page position while retrying that failed item.
+        binding.root.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            val chapter = viewModel.getCurrentChapter() ?: return@postDelayed
+            val selected = selectedPageForWebsite?.takeIf {
+                it.chapter.chapter.id == chapter.chapter.id && it.status == Page.State.ERROR
+            }
+            val failed = selected ?: chapter.pages?.firstOrNull { it.status == Page.State.ERROR }
+            if (failed != null) {
+                failed.chapter.pageLoader?.retryPage(failed)
+            } else if (chapter.state is ReaderChapter.State.Error) {
+                scope.launch { viewModel.preloadChapter(chapter) }
+            }
+        }, 450L)
+    }
+
     fun openLinkedChapter(manga: Manga, chapter: Chapter) {
         viewModel.saveCurrentChapterReadingProgress()
         startActivity(newIntent(this, manga, chapter))
@@ -1976,6 +2073,7 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
         hasExtraPage: Boolean,
     ) {
         viewModel.onPageSelected(page, hasExtraPage)
+        selectedPageForWebsite = page
         flashPage()
         val pages = page.chapter.pages ?: return
 
