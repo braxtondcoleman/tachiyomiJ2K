@@ -50,7 +50,7 @@ object UnifiedChapterReadThrough {
                     initialized = true
                 }.also { created ->
                     val inserted = db.insertManga(created).executeAsBlocking().insertedId()
-                    require(inserted > 0L) { "Could not store selected source manga" }
+                    require(inserted != null && inserted > 0L) { "Could not store selected source manga" }
                     created.id = inserted
                 }
             val mangaId = requireNotNull(manga.id) { "Source manga has no local identity" }
@@ -69,7 +69,7 @@ object UnifiedChapterReadThrough {
                     if (source is HttpSource) source.prepareNewChapter(this, manga)
                 }.also { created ->
                     val inserted = db.insertChapter(created).executeAsBlocking().insertedId()
-                    require(inserted > 0L) { "Could not store selected source chapter" }
+                    require(inserted != null && inserted > 0L) { "Could not store selected source chapter" }
                     created.id = inserted
                 }
             Openable(manga, chapter)
