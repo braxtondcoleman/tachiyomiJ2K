@@ -102,7 +102,7 @@ object SmartSourcesDialog {
             matchingNumberedChapters = null,
             sourceAvailable = controller.presenter.sourceManager.get(result.source.id) != null,
         )
-        val originalCount = controller.presenter.db.getChapters(original).executeAsBlocking().size
+        val originalCount = controller.presenter.chapters.size
         val details = buildString {
             appendLine(result.manga.title)
             appendLine("Source: ${result.source.name}")
