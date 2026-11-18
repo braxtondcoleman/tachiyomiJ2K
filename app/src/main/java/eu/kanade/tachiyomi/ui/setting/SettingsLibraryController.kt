@@ -24,6 +24,7 @@ import eu.kanade.tachiyomi.data.preference.asImmediateFlowIn
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.category.CategoryController
 import eu.kanade.tachiyomi.ui.library.LibraryPresenter
+import eu.kanade.tachiyomi.ui.library.LibraryAuditDialog
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
@@ -83,6 +84,21 @@ class SettingsLibraryController : SettingsController() {
 
                     onClick {
                         TabbedLibraryDisplaySheet(this@SettingsLibraryController).show()
+                    }
+                }
+
+                preference {
+                    key = "j2k_library_health_audit"
+                    isPersistent = false
+                    title = "Library health and duplicate review"
+                    summary = "Missing extensions, chapter/update issues, confirmed source links and safe duplicate comparisons"
+                    onClick {
+                        val host = activity as? androidx.appcompat.app.AppCompatActivity
+                        if (host != null) {
+                            LibraryAuditDialog.show(host, viewScope, db, Injekt.get()) { manga ->
+                                router.pushController(MangaDetailsController(manga, true).withFadeTransaction())
+                            }
+                        }
                     }
                 }
 
