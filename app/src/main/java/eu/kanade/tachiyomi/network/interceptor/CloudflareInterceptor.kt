@@ -48,7 +48,14 @@ class CloudflareInterceptor(
                     .firstOrNull { it.name == "cf_clearance" }
             resolveWithWebView(request, oldCookie)
 
-            return chain.proceed(request)
+            val retried = chain.proceed(request)
+            // A cookie can be issued even though the server challenges again.
+            // Never report the automatic step as success if the retry remains
+            // blocked; let the foreground reader offer human verification.
+            if (shouldIntercept(retried)) {
+                CloudflareChallengeSignal.reportFailure(request.url.host)
+            }
+            return retried
             // Because OkHttp's enqueue only handles IOExceptions, wrap the exception so that
             // we don't crash the entire app
         } catch (e: CloudflareBypassException) {
