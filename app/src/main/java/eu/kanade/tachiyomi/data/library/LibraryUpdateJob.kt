@@ -390,6 +390,7 @@ class LibraryUpdateJob(
         }
         // Persist an in-app report even if update notifications are disabled.
         SourceHealthLedger.recordRun(context, checkedUpdates, failedUpdates)
+        SourceRecoveryInbox.recordRun(context, checkedUpdates, failedUpdates)
         LibraryUpdateHistory.record(context, checkedUpdates, failedUpdates, skippedUpdates)
         newUpdates.clear()
         checkedUpdates.clear()
