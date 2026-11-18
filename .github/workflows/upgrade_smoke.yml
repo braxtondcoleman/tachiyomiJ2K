@@ -2,7 +2,7 @@ name: Android signed-upgrade safety smoke
 
 on:
   pull_request:
-    branches: [feature/sy-multi-source-manga, feature/milestone-a-library-safety, feature/milestone-b-unified-chapters, feature/milestone-c-source-recovery]
+    branches: [feature/sy-multi-source-manga, feature/milestone-a-library-safety, feature/milestone-b-unified-chapters, feature/milestone-c-source-recovery, feature/milestone-d-reader-continuity, feature/milestone-e-extension-intelligence]
   workflow_dispatch:
 
 permissions:
