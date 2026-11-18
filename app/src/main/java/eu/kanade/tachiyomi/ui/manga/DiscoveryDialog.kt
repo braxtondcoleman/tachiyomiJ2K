@@ -65,40 +65,85 @@ object DiscoveryDialog {
                 }
                 "${c.manga.title}\n${c.source.name} · $label"
             }.map { it as CharSequence }.toTypedArray()
-            activity.materialAlertDialog()
+
+            // Keep the results open behind each preview. A tap must not
+            // dismiss the entire discovery list and force a new network scan.
+            val results = activity.materialAlertDialog()
                 .setTitle("Discover · ${report.results.size} choices")
-                .setItems(items) { _, pos ->
-                    val c = report.results[pos]
+                .setItems(items, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create()
+            results.setOnShowListener {
+                results.listView.setOnItemClickListener { _, _, pos, _ ->
+                    val candidate = report.results[pos]
                     val message = buildString {
-                        appendLine(c.manga.title)
-                        appendLine("Source: ${c.source.name}")
-                        c.suggestion.reasons.forEach { appendLine("• $it") }
-                        append(if (c.localManga != null) "\nAlready in your library." else "\nReview its details before adding it.")
+                        appendLine(candidate.manga.title)
+                        appendLine("Source: ${candidate.source.name}")
+                        candidate.suggestion.reasons.forEach { appendLine("• $it") }
+                        append(
+                            if (candidate.localManga != null) "\nAlready in your library."
+                            else "\nReview its details before adding it to your library.",
+                        )
                     }
                     activity.materialAlertDialog()
                         .setTitle("Recommendation preview")
                         .setMessage(message)
                         .setPositiveButton("Open manga") { _, _ ->
                             scope.launch {
-                                val manga = withContext(Dispatchers.IO) {
-                                    db.getManga(c.manga.url, c.source.id).executeAsBlocking()
-                                } ?: MangaImpl().apply {
-                                    source = c.source.id
-                                    url = c.manga.url
-                                    title = c.manga.title
-                                    author = c.manga.author
-                                    artist = c.manga.artist
-                                    description = c.manga.description
-                                    genre = c.manga.genre
-                                    thumbnail_url = c.manga.thumbnail_url
-                                    initialized = c.manga.initialized
+                                val manga = try {
+                                    withContext(Dispatchers.IO) {
+                                        val existing = db.getManga(
+                                            candidate.manga.url,
+                                            candidate.source.id,
+                                        ).executeAsBlocking()
+                                        if (existing?.id != null) {
+                                            existing
+                                        } else {
+                                            // MangaDetailsController saves/recreates by ID.
+                                            // A transient MangaImpl has no row ID and can
+                                            // crash after controller recreation/navigation.
+                                            val item = MangaImpl().apply {
+                                                source = candidate.source.id
+                                                url = candidate.manga.url
+                                                title = candidate.manga.title
+                                                author = candidate.manga.author
+                                                artist = candidate.manga.artist
+                                                description = candidate.manga.description
+                                                genre = candidate.manga.genre
+                                                thumbnail_url = candidate.manga.thumbnail_url
+                                                initialized = candidate.manga.initialized
+                                                favorite = false
+                                            }
+                                            db.insertManga(item).executeAsBlocking()
+                                            db.getManga(item.url, item.source).executeAsBlocking()
+                                                ?.takeIf { it.id != null && it.id!! > 0L }
+                                                ?: error("Could not save the recommendation for viewing")
+                                        }
+                                    }
+                                } catch (error: Exception) {
+                                    Timber.w(error, "Could not open recommended manga")
+                                    if (!activity.isFinishing && !activity.isDestroyed) {
+                                        activity.materialAlertDialog()
+                                            .setTitle("Could not open manga")
+                                            .setMessage(
+                                                "This title could not be prepared for the reader. " +
+                                                    "Your library wasn't changed. Try another source or title.",
+                                            )
+                                            .setPositiveButton(android.R.string.ok, null)
+                                            .show()
+                                    }
+                                    return@launch
                                 }
-                                if (!activity.isFinishing && !activity.isDestroyed) openDetails(manga)
+                                if (activity.isFinishing || activity.isDestroyed) return@launch
+                                results.dismiss()
+                                openDetails(manga)
                             }
                         }
-                        .setNegativeButton(android.R.string.cancel, null).show()
+                        .setNegativeButton("Back to results", null)
+                        .show()
                 }
-                .setNegativeButton(android.R.string.cancel, null).show()
+            }
+            results.show()
         }
     }
 }
