@@ -20,7 +20,20 @@ import kotlinx.serialization.json.longOrNull
  */
 object SmartSourceLinks {
     private const val KEY = "j2k.custom.linkedSources.v1"
+    private const val PREFERRED_KEY = "j2k.custom.preferredSource.v1"
     data class Link(val sourceId: Long, val url: String, val title: String)
+    data class Preferred(val sourceId: Long, val url: String)
+
+    /** A source preference is only a ranking hint; it never migrates chapters. */
+    fun preferred(manga: Manga): Preferred? = preferredFromMemo(manga.memo)
+
+    fun preferredFromMemo(memo: JsonObject): Preferred? {
+        val obj = memo[PREFERRED_KEY] as? JsonObject ?: return null
+        val id = (obj["source"] as? JsonPrimitive)?.longOrNull ?: return null
+        val url = (obj["url"] as? JsonPrimitive)?.contentOrNull
+            ?.takeIf { it.isNotBlank() } ?: return null
+        return Preferred(id, url)
+    }
 
     /**
      * Use portable (source ID, URL) identities rather than a local manga row ID.
@@ -48,8 +61,16 @@ object SmartSourceLinks {
     fun mergeOnRestore(currentMemo: JsonObject, backupMemo: JsonObject): JsonObject {
         val merged = (fromMemo(currentMemo) + fromMemo(backupMemo))
             .distinctBy { it.sourceId to it.url }
-        if (merged.isEmpty()) return currentMemo
-        return withLinks(currentMemo, merged)
+        val currentPreference = preferredFromMemo(currentMemo)
+        val restoredPreference = preferredFromMemo(backupMemo)
+        val base = if (merged.isEmpty()) currentMemo else withLinks(currentMemo, merged)
+        // Respect the current explicit choice, or import the backed-up choice
+        // when no current selection exists. Never choose based on row IDs.
+        return if (currentPreference == null && restoredPreference != null) {
+            withPreferred(base, restoredPreference)
+        } else {
+            base
+        }
     }
 
     /**
@@ -77,6 +98,9 @@ object SmartSourceLinks {
             } else if (sourceId == ownSource && url == ownUrl) {
                 errors.add("Alternate source links to its own manga")
             }
+        }
+        if (json.containsKey(PREFERRED_KEY) && preferredFromMemo(json) == null) {
+            errors.add("Invalid preferred-source identity")
         }
         return errors
     }
@@ -107,6 +131,35 @@ object SmartSourceLinks {
         return JsonObject(memo.toMutableMap().apply { put(KEY, array) })
     }
 
+    private fun withPreferred(memo: JsonObject, preferred: Preferred?): JsonObject {
+        val entries = memo.toMutableMap()
+        if (preferred == null) {
+            entries.remove(PREFERRED_KEY)
+        } else {
+            entries[PREFERRED_KEY] = JsonObject(mapOf(
+                "source" to JsonPrimitive(preferred.sourceId),
+                "url" to JsonPrimitive(preferred.url),
+            ))
+        }
+        return JsonObject(entries)
+    }
+
+    /**
+     * Explicitly prefer a confirmed source, or the manga's original source.
+     * The preference is included in the existing memo backup and can be undone.
+     */
+    fun setPreferred(db: DatabaseHelper, primaryId: Long, preferred: Preferred): Boolean {
+        val manga = db.getManga(primaryId).executeAsBlocking() ?: return false
+        if (!manga.favorite) return false
+        val original = manga.source == preferred.sourceId && manga.url == preferred.url
+        val linked = get(manga).any { it.sourceId == preferred.sourceId && it.url == preferred.url }
+        if (!original && !linked) return false
+        if (preferredFromMemo(manga.memo) == preferred) return false
+        manga.memo = withPreferred(manga.memo, preferred)
+        db.updateMangaMemo(manga).executeAsBlocking()
+        return true
+    }
+
     fun add(db: DatabaseHelper, primaryId: Long, alternate: Link): Boolean {
         val primary = db.getManga(primaryId).executeAsBlocking() ?: return false
         if (!primary.favorite) return false
@@ -123,7 +176,11 @@ object SmartSourceLinks {
         val old = get(primary)
         val next = old.filterNot { it.sourceId == alternate.sourceId && it.url == alternate.url }
         if (old.size == next.size) return false
-        save(db, primary, next)
+        primary.memo = withLinks(primary.memo, next)
+        if (preferredFromMemo(primary.memo) == Preferred(alternate.sourceId, alternate.url)) {
+            primary.memo = withPreferred(primary.memo, null)
+        }
+        db.updateMangaMemo(primary).executeAsBlocking()
         return true
     }
 
