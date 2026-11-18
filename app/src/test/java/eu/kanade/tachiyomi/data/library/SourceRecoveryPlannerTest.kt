@@ -92,4 +92,20 @@ class SourceRecoveryPlannerTest {
             SourceRecoveryPlanner.recommend(100, "A Long Manga Name", false, 9, false).confidence,
         )
     }
+
+    @Test fun freshListsWithUnrecognizedChapterNumbersStayUnverified() {
+        val source = SourceRecoveryPlanner.Coverage(
+            state = SourceRecoveryPlanner.CoverageState.FETCHED,
+            total = 3,
+            numbered = setOf(1f),
+        )
+        val alternative = SourceRecoveryPlanner.Coverage(
+            state = SourceRecoveryPlanner.CoverageState.FETCHED,
+            total = 2,
+            numbered = setOf(1f, 2f),
+        )
+        val assessment = SourceRecoveryPlanner.compare(source, alternative)
+        assertFalse(assessment.verified)
+        assertTrue(assessment.summary.contains("NOT confirmed missing online"))
+    }
 }
