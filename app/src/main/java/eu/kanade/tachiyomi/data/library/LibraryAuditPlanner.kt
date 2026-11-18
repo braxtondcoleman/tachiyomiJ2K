@@ -39,6 +39,7 @@ object LibraryAuditPlanner {
         val emptyChapterLists: List<Entry>,
         val groups: List<Group>,
         val confirmedLinks: Int,
+        val linkedEntries: List<Entry>,
     )
 
     /**
@@ -88,6 +89,7 @@ object LibraryAuditPlanner {
             emptyChapterLists = unique.filter { it.count == 0 },
             groups = duplicateGroups(unique),
             confirmedLinks = unique.sumOf { it.linkedSources },
+            linkedEntries = unique.filter { it.linkedSources > 0 },
         )
     }
 
