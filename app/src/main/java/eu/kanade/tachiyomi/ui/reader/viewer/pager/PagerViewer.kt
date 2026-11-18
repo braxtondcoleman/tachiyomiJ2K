@@ -12,6 +12,8 @@ import androidx.core.view.isVisible
 import androidx.viewpager.widget.ViewPager
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.ui.reader.loader.ReaderWarmupPolicy
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.InsertPage
@@ -48,6 +50,7 @@ abstract class PagerViewer(
     val activity: ReaderActivity,
 ) : BaseViewer {
     val downloadManager: DownloadManager by injectLazy()
+    private val warmupPreferences: PreferencesHelper by injectLazy()
 
     val scope = MainScope()
 
@@ -351,7 +354,7 @@ abstract class PagerViewer(
             Timber.d("onReaderPageSelected: ${page.number}/${pages.size}")
         }
         // Preload next chapter once we're within the last 5 pages of the current chapter
-        val inPreloadRange = pages.size - page.number < 5
+        val inPreloadRange = ReaderWarmupPolicy.shouldWarmNext(page.number, pages.size, warmupPreferences.preloadSize().get())
         if (inPreloadRange && allowPreload && page.chapter == adapter.currentChapter) {
             Timber.d("Request preload next chapter because we're at page ${page.number} of ${pages.size}")
             adapter.nextTransition?.to?.let {

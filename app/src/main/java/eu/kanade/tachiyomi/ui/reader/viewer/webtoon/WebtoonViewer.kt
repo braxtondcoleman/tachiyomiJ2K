@@ -13,6 +13,8 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.WebtoonLayoutManager
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.ui.reader.loader.ReaderWarmupPolicy
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
@@ -49,6 +51,7 @@ class WebtoonViewer(
     val hasMargins: Boolean = false,
 ) : BaseViewer {
     val downloadManager: DownloadManager by injectLazy()
+    private val warmupPreferences: PreferencesHelper by injectLazy()
 
     private val scope = MainScope()
 
@@ -235,7 +238,7 @@ class WebtoonViewer(
         val pages = page.chapter.pages ?: return
         Timber.d("onReaderPageSelected: ${page.number}/${pages.size}")
         // Preload next chapter once we're within the last 5 pages of the current chapter
-        val inPreloadRange = pages.size - page.number < 5
+        val inPreloadRange = ReaderWarmupPolicy.shouldWarmNext(page.number, pages.size, warmupPreferences.preloadSize().get())
         if (inPreloadRange && allowPreload && page.chapter == adapter.currentChapter) {
             Timber.d("Request preload next chapter because we're at page ${page.number} of ${pages.size}")
             val nextItem = adapter.items.getOrNull(adapter.items.size - 1)
