@@ -96,8 +96,9 @@ object DiscoveryDialog {
                                             candidate.manga.url,
                                             candidate.source.id,
                                         ).executeAsBlocking()
-                                        if (RecommendationOpenGuard.canOpen(existing)) {
-                                            existing
+                                        val saved = existing?.takeIf(RecommendationOpenGuard::canOpen)
+                                        if (saved != null) {
+                                            saved
                                         } else {
                                             // MangaDetailsController saves/recreates by ID.
                                             // A transient MangaImpl has no row ID and can
