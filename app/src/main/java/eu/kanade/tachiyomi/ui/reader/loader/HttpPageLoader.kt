@@ -100,6 +100,20 @@ class HttpPageLoader(
     }
 
     /**
+     * As soon as the chapter page list arrives, warm its first bounded group of
+     * images into the existing cache. Current visible pages retain high priority.
+     * No new chapter download job, permanent disk copy or unbounded image memory.
+     */
+    fun warmStart(pages: List<ReaderPage>) {
+        val count = ReaderWarmupPolicy.initialPages(preloadSize, pages.size)
+        pages.take(count).forEach { page ->
+            if (page.status == Page.State.QUEUE && queue.none { it.page === page }) {
+                queue.offer(PriorityPage(page, 0))
+            }
+        }
+    }
+
+    /**
      * Loads a page through the queue. Handles re-enqueueing pages if they were evicted from the cache.
      */
     override suspend fun loadPage(page: ReaderPage) {
@@ -118,6 +132,7 @@ class HttpPageLoader(
 
             val queuedPages = mutableListOf<PriorityPage>()
             if (page.status == Page.State.QUEUE) {
+                queue.removeAll { it.page === page }
                 queuedPages += PriorityPage(page, 1).also { queue.offer(it) }
             }
             queuedPages += preloadNextPages(page, preloadSize)
@@ -150,7 +165,11 @@ class HttpPageLoader(
             .subList(pageIndex + 1, min(pageIndex + 1 + amount, pages.size))
             .mapNotNull {
                 if (it.status == Page.State.QUEUE) {
-                    PriorityPage(it, 0).apply { queue.offer(this) }
+                    if (queue.none { queued -> queued.page === it }) {
+                        PriorityPage(it, 0).apply { queue.offer(this) }
+                    } else {
+                        null
+                    }
                 } else {
                     null
                 }
