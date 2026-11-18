@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.library.ExtensionIntelligence
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
+import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -77,6 +78,8 @@ object ExtensionIntelligenceDialog {
             hiddenSourceIds = preferences.hiddenSources().get(),
             untrustedPackages = untrusted,
             maxResults = 40,
+            minLibVersion = ExtensionLoader.LIB_VERSION_MIN,
+            maxLibVersion = ExtensionLoader.LIB_VERSION_MAX,
         )
         val notable = if (sourceId == null) {
             candidates.filter { it.status != ExtensionIntelligence.Status.INSTALLED }
@@ -102,6 +105,7 @@ object ExtensionIntelligenceDialog {
         val rows: Array<CharSequence> = notable.map { result ->
             val marker = when (result.status) {
                 ExtensionIntelligence.Status.UPDATE_AVAILABLE -> "↑ Update"
+                ExtensionIntelligence.Status.INCOMPATIBLE_LIBRARY -> "⚠ Incompatible extension API"
                 ExtensionIntelligence.Status.INDEX_NOT_LISTED -> "? Not indexed"
                 ExtensionIntelligence.Status.UNTRUSTED_PACKAGE -> "⚠ Untrusted"
                 ExtensionIntelligence.Status.MISSING -> "＋ Not installed"
