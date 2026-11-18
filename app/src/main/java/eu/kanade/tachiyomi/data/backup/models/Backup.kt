@@ -17,10 +17,10 @@ data class Backup(
     @ProtoNumber(105) var backupSourcePreferences: List<BackupSourcePreferences> = emptyList(),
 ) {
     companion object {
-        val filenameRegex = """(${BuildConfig.APPLICATION_ID}|tachiyomi)?_\d+-\d+-\d+_\d+-\d+\.(tachibk|proto\.gz)""".toRegex()
+        val filenameRegex = """(${Regex.escape(BuildConfig.APPLICATION_ID)}|tachiyomi)?_\d+-\d+-\d+_\d+-\d+(?:-\d{2}-\d{3})?\.(tachibk|proto\.gz)""".toRegex()
 
         fun getBackupFilename(): String {
-            val date = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault()).format(Date())
+            val date = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.getDefault()).format(Date())
             return "${BuildConfig.APPLICATION_ID}_$date.tachibk"
         }
     }
