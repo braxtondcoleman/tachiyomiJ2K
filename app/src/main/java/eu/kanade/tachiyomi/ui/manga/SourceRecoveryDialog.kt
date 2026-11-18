@@ -282,14 +282,14 @@ object SourceRecoveryDialog {
         val comparison = SourceRecoveryPlanner.compare(original.coverage, other.coverage)
         val summary = buildString {
             appendLine("Original: ${original.title}")
-            appendLine("Stored chapters: ${original.coverage.total}; read: ${original.coverage.read}; bookmarks: ${original.coverage.bookmarked}; in progress: ${original.coverage.inProgress}; downloaded: ${original.coverage.downloads?.toString() ?: "unknown"}")
+            appendLine("Chapters (${if (original.coverage.isFresh) "fresh fetched" else "stored"}): ${original.coverage.total}; read: ${original.coverage.read}; bookmarks: ${original.coverage.bookmarked}; in progress: ${original.coverage.inProgress}; downloaded: ${original.coverage.downloads?.toString() ?: "unknown"}")
             appendLine()
             appendLine("Candidate: ${other.title}")
-            appendLine("Stored chapters: ${other.coverage.total}; read: ${other.coverage.read}; bookmarks: ${other.coverage.bookmarked}; in progress: ${other.coverage.inProgress}; downloaded: ${other.coverage.downloads?.toString() ?: "unknown"}")
+            appendLine("Chapters (${if (other.coverage.isFresh) "fresh fetched" else "stored"}): ${other.coverage.total}; read: ${other.coverage.read}; bookmarks: ${other.coverage.bookmarked}; in progress: ${other.coverage.inProgress}; downloaded: ${other.coverage.downloads?.toString() ?: "unknown"}")
             appendLine()
             appendLine(comparison.summary)
             appendLine("Download cache counts are advisory; downloaded files are never modified in this preview.")
-            appendLine("This does not prove the series identity or establish live chapter availability.")
+            appendLine("A fetched chapter list is one moment's snapshot, not proof of series identity or future availability.")
             append("Changing preference does NOT migrate, delete, or rewrite chapters or reading progress.")
         }
         val builder = activity.materialAlertDialog()
