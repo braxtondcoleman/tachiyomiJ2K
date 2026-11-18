@@ -83,7 +83,14 @@ object SmartSourceLinks {
         } catch (_: Exception) {
             null
         } ?: return listOf("Manga memo is not a valid JSON object")
-        val entries = json[KEY] ?: return emptyList()
+        val entries = json[KEY]
+        if (entries == null) {
+            return if (json.containsKey(PREFERRED_KEY) && preferredFromMemo(json) == null) {
+                listOf("Invalid preferred-source identity")
+            } else {
+                emptyList()
+            }
+        }
         if (entries !is JsonArray) return listOf("Alternate source list is not an array")
         val seen = mutableSetOf<Pair<Long, String>>()
         val errors = mutableListOf<String>()
