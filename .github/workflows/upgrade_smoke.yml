@@ -1,0 +1,92 @@
+name: Android signed-upgrade safety smoke
+
+on:
+  pull_request:
+    branches: [feature/sy-multi-source-manga]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j2k-upgrade-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upgrade-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      J2K_STORE_PASSWORD: ci-only-signing
+      J2K_KEY_ALIAS: ci
+      J2K_KEY_PASSWORD: ci-only-signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Prepare CI gradle settings and disposable signing identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.gradle
+          cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
+          keytool -genkeypair -noprompt \
+            -keystore "$RUNNER_TEMP/j2k-ci-upgrade.jks" \
+            -storepass "$J2K_STORE_PASSWORD" -keypass "$J2K_KEY_PASSWORD" \
+            -alias "$J2K_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 7 \
+            -dname 'CN=Disposable J2K CI Upgrade,O=Tests,C=US'
+          chmod 600 "$RUNNER_TEMP/j2k-ci-upgrade.jks"
+          echo "J2K_RELEASE_KEYSTORE=$RUNNER_TEMP/j2k-ci-upgrade.jks" >> "$GITHUB_ENV"
+      - name: Build version 114 with disposable CI signing key
+        env:
+          J2K_RELEASE_VERSION_CODE: '114'
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleStandardDebug --stacktrace
+          mkdir -p ci-apks
+          APK="$(find app/build/outputs/apk/standard/debug -name '*universal*debug*.apk' -print -quit)"
+          [[ -n "$APK" ]] || exit 1
+          cp "$APK" ci-apks/baseline.apk
+      - name: Build version 115 with the SAME CI signing key
+        env:
+          J2K_RELEASE_VERSION_CODE: '115'
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleStandardDebug --rerun-tasks --stacktrace
+          APK="$(find app/build/outputs/apk/standard/debug -name '*universal*debug*.apk' -print -quit)"
+          [[ -n "$APK" ]] || exit 1
+          cp "$APK" ci-apks/upgrade.apk
+      - name: Assert exact package, certificate, and version increments
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          CERT="$("$TOOLS/apksigner" verify --print-certs ci-apks/baseline.apk |
+              sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          bash scripts/verify_apk_identity.sh ci-apks/baseline.apk \
+            eu.kanade.tachiyomi.customj2k.debug 114 "$CERT"
+          bash scripts/verify_apk_identity.sh ci-apks/upgrade.apk \
+            eu.kanade.tachiyomi.customj2k.debug 115 "$CERT"
+      - name: Enable emulator acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Install v114, keep a private-file sentinel, then upgrade to v115
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: bash scripts/smoke_android_upgrade.sh ci-apks/baseline.apk ci-apks/upgrade.apk
+      - name: Remove disposable CI signing identity
+        if: always()
+        run: rm -f "$RUNNER_TEMP/j2k-ci-upgrade.jks"
+
+# The generated CI signing key is intentionally destroyed and NEVER uploaded.
+# This checks upgrade mechanics; production APKs require the user's own private key.
