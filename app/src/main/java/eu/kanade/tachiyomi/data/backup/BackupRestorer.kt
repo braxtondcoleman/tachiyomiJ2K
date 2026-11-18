@@ -93,6 +93,8 @@ class BackupRestorer(
         flags: Int,
     ): Boolean {
         val backup = BackupUtil.decodeBackup(context, uri)
+        // Refuse damaged portable links before ANY database writes or preference restores.
+        SmartSourceLinks.requireValidBackupEntries(backup.backupManga)
 
         val restoreLibrary = flags and BackupConst.RESTORE_LIBRARY_MASK == BackupConst.RESTORE_LIBRARY
         val restoreCategories = flags and BackupConst.RESTORE_CATEGORY_MASK == BackupConst.RESTORE_CATEGORY
