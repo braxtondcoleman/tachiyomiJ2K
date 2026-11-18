@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.manga
 
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.database.models.Chapter
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
@@ -17,6 +18,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Recovery is user-directed: no speculative source probes, automatic extension
@@ -105,7 +108,7 @@ object SourceRecoveryDialog {
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun coverageFrom(chapters: List<Chapter>, installed: Boolean, lastSuccess: Long) =
+    private fun coverageFrom(chapters: List<Chapter>, installed: Boolean, lastSuccess: Long, downloaded: Int?) =
         SourceRecoveryPlanner.Coverage(
             state = when {
                 !installed -> SourceRecoveryPlanner.CoverageState.EXTENSION_UNAVAILABLE
@@ -120,6 +123,7 @@ object SourceRecoveryDialog {
             bookmarked = chapters.count { it.bookmark },
             inProgress = chapters.count { it.last_page_read > 0 && !it.read },
             lastSuccessAt = lastSuccess,
+            downloads = downloaded,
         )
 
     private fun showCoverage(controller: MangaDetailsController) {
@@ -129,6 +133,7 @@ object SourceRecoveryDialog {
             val stored = withContext(Dispatchers.IO) {
                 val db = controller.presenter.db
                 val sources = controller.presenter.sourceManager
+                val downloads: DownloadManager = Injekt.get()
                 val main = db.getManga(id).executeAsBlocking() ?: return@withContext emptyList<StoredSource>()
                 val links = listOf(
                     SmartSourceLinks.Link(main.source, main.url, main.title),
@@ -146,6 +151,7 @@ object SourceRecoveryDialog {
                             chapters,
                             sources.get(link.sourceId) != null,
                             health?.lastSuccess ?: 0,
+                            manga?.let { downloads.getDownloadCount(it) },
                         ),
                     )
                 }
@@ -181,13 +187,13 @@ object SourceRecoveryDialog {
         val comparison = SourceRecoveryPlanner.compare(original.coverage, other.coverage)
         val summary = buildString {
             appendLine("Original: ${original.title}")
-            appendLine("Stored chapters: ${original.coverage.total}; read: ${original.coverage.read}; bookmarks: ${original.coverage.bookmarked}; in progress: ${original.coverage.inProgress}")
+            appendLine("Stored chapters: ${original.coverage.total}; read: ${original.coverage.read}; bookmarks: ${original.coverage.bookmarked}; in progress: ${original.coverage.inProgress}; downloaded: ${original.coverage.downloads?.toString() ?: "unknown"}")
             appendLine()
             appendLine("Candidate: ${other.title}")
-            appendLine("Stored chapters: ${other.coverage.total}; read: ${other.coverage.read}; bookmarks: ${other.coverage.bookmarked}; in progress: ${other.coverage.inProgress}")
+            appendLine("Stored chapters: ${other.coverage.total}; read: ${other.coverage.read}; bookmarks: ${other.coverage.bookmarked}; in progress: ${other.coverage.inProgress}; downloaded: ${other.coverage.downloads?.toString() ?: "unknown"}")
             appendLine()
             appendLine(comparison.summary)
-            appendLine("Downloads: not modified or counted in this preview.")
+            appendLine("Download cache counts are advisory; downloaded files are never modified in this preview.")
             appendLine("This does not prove the series identity or establish live chapter availability.")
             append("Changing preference does NOT migrate, delete, or rewrite chapters or reading progress.")
         }
