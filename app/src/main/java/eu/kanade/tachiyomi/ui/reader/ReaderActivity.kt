@@ -349,7 +349,16 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
                         ?.takeIf { it.chapter.chapter.id == currentChapterId }
                     val currentPageFailed = active?.status == Page.State.ERROR
                     val chapterFailed = chapter.state is ReaderChapter.State.Error
-                    if (currentPageFailed || chapterFailed) {
+                    if (WebsiteAccessPolicy.shouldOfferOverlay(
+                            foreground = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED),
+                            sameSource = WebsiteAccessPolicy.sameSourceHost(
+                                viewModel.getSource()?.baseUrl.orEmpty(), "https://${failure.host}/",
+                            ),
+                            sameChapter = chapter.chapter.id == currentChapterId,
+                            currentPageFailed = currentPageFailed,
+                            chapterFailed = chapterFailed,
+                        )
+                    ) {
                         val url = if (currentPageFailed) active?.imageUrl
                             ?: viewModel.getChapterUrl()
                         else viewModel.getChapterUrl()
@@ -930,11 +939,20 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
         retryAction: (() -> Unit)? = null,
     ) {
         if (websiteVerificationOpen || isFinishing || isDestroyed) return
+        val originChapterId = viewModel.getCurrentChapter()?.chapter?.id ?: return
+        val originSourceId = viewModel.manga?.source
         websiteVerificationOpen = true
         val opened = WebsiteAccessDialog.show(
             this,
             url,
-            onRetry = { retryAction?.invoke() ?: retryCurrentPageAfterWebsite() },
+            onRetry = retry@{
+                // Never retry a stale page if navigation changed while the
+                // verification WebView was visible.
+                if (viewModel.getCurrentChapter()?.chapter?.id != originChapterId ||
+                    viewModel.manga?.source != originSourceId
+                ) return@retry
+                retryAction?.invoke() ?: retryCurrentPageAfterWebsite()
+            },
             onDismiss = { websiteVerificationOpen = false },
         )
         if (!opened) {
