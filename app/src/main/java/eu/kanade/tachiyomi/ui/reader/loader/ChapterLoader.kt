@@ -55,6 +55,7 @@ class ChapterLoader(
                 }
 
                 chapter.state = ReaderChapter.State.Loaded(pages)
+                (loader as? HttpPageLoader)?.warmStart(pages)
             } catch (e: Throwable) {
                 chapter.state = ReaderChapter.State.Error(e)
                 throw e
