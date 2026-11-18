@@ -1,6 +1,6 @@
 # Milestone C — actionable source recovery and safe replacements
 
-**Status: planning / acceptance design only.** This branch is based on Phase B's `feature/milestone-b-unified-chapters`. Do not release or merge it until Phase B and Milestone A pass their gates. No permanent signing secrets are needed for coding.
+**Status: recovery feature code and JVM tests implemented in draft PR #5; latest CI, emulator and physical-device QA remain release gates.** This branch is stacked on Phase B's `feature/milestone-b-unified-chapters`. No permanent signing secrets are needed for coding, and nothing is merged into `master`.
 
 ## Purpose
 
@@ -65,3 +65,38 @@ When an extension disappears, a source fails repeatedly, or chapters become unav
 | C5 navigation | manga details / library settings | click-through smoke and accessibility |
 
 **Do not begin Phase C automatic repair or merging without explicitly revisiting the user-approval controls.**
+
+## Implementation handoff — source recovery (PR #5)
+
+- **C1 — Per-title error inbox:** `SourceRecoveryInbox.recordRun` records actual chapter-update outcomes in a bounded private app file using portable (source ID, manga URL) identities. Individual successes resolve the active failure. Error categories distinguish missing/disabled extensions, HTTP 429, auth/Cloudflare, HTTP 5xx, timeouts, parser changes, removed title and unknown. Only sanitized short reasons are stored; no chapter URLs, credentials, speculative probes or automatic retries. Accessible from **Settings → Library → Source recovery inbox**, where the user can open the affected manga.
+- **C2 — Honest source coverage:** `SourceRecoveryDialog` reads only the original and explicitly confirmed linked manga's locally stored chapters, read/bookmark/in-progress state, source availability, and actual source health. Distinguishes **stored-only**, unknown, and extension missing; comparison's unverified chapter numbers are labeled *possible*, never presented as definitely missing online. Existing downloads are not touched or claimed fully inventoried.
+- **C3 — Evidence-aware candidate preview:** Existing `SmartSourceFinder` performs bounded search. The candidate dialog adds conservative title/alias matching, author mismatch rejection, short-title warnings, non-equivalence of chapter counts, manual review and a second explicit same-series confirmation before saving a removable link. No auto-link, install, migration or progress copy.
+- **C4 — Source-switch / migration safety preview:** Side-by-side original vs confirmed linked source shows chapter counts, overlap, possible gaps, read/bookmarked/in-progress state and explicit no-data-loss expectations. The sole write option changes user preference after a second confirmation; it **does not run the existing destructive migration wizard**. True migration remains a separate user-initiated operation and must be tested before offering it as a one-tap automated action.
+- **C5 — Recovery navigation:** Manga details **Source problem? Fix it** menu opens failure details, stored coverage, replacement search, title-only manual update retry, unified chapters, or installed source browser/extension manager. HTTP 429 prompts an explicit warning before user-requested retry. The update-history summary and legacy source-health panel remain available.
+
+### Implemented test fixtures
+
+`SourceRecoveryPlannerTest.kt` includes failure classification (429, 503, network, login/Cloudflare, parser, missing extension/title/unknown), coverage-vs-unknown and unverified gaps, unavailable extension rejection, short-title and author mismatch controls, and strong versus review-only manual suggestions.
+
+### Release/QA gates that are NOT complete
+
+- [ ] Latest full-branch JVM/Android CI passes
+- [ ] Latest same-key v114 → v115 disposable-emulator upgrade smoke passes
+- [ ] Actual multi-extension source-failure simulation on device (missing, 429, Cloudflare, parse mismatch)
+- [ ] Verify recovery inbox opens the correct original manga; source tool navigation and manual retry
+- [ ] Verify backup/restore on a separate installed custom build preserves source links, per-source progress and the original J2K app
+- [ ] User supplies permanent private signing identity through GitHub Actions Secrets before production release
+
+Phase C is a **manual recovery and safe preview** milestone, not a fully autonomous site repair engine. Additional autonomous switching belongs in a later, separately reviewed phase.
+
+## Beyond Phase C — optional backlog
+
+| Next phase | Proposed scope |
+| --- | --- |
+| D — Reader continuity | Seamless next-chapter navigation and explicit confirmed-alternate fallback when a chapter fails; progress stays source-specific until verified |
+| E — Extension intelligence | Reliable extension finder, deprecation warnings, trusted repo metadata, compatibility/installer diagnostics |
+| F — Offline reliability | Download dedupe, queue recovery, offline-first chapter choice, safer refresh after outages |
+| G — Discovery | Related works, alternate-title discovery, local recommendations, optionally local AI |
+| H — Library organization | Duplicate resolution preview, bulk source audit, unified coverage dashboards, manual cleanup |
+| I — UX/performance | Advanced filters, caching/performance, error explanation, accessibility, polished reader transitions |
+| Release milestone | One permanent signing key, successful backup and Samsung-device testing, stable private release workflow |
