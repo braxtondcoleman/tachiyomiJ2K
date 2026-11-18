@@ -155,4 +155,82 @@ class SmartSourceLinksBackupTest {
         assertFalse(SmartSourceLinks.backupLinkIssues(corrupt, 1, "/original").isEmpty())
         assertFalse(SmartSourceLinks.backupLinkIssues("not-json", 1, "/original").isEmpty())
     }
+
+    @Test
+    fun preferredSourceSurvivesBackupRoundTripAndRestore() {
+        val preference = SmartSourceLinks.Preferred(303, "/alternative")
+        val preferredJson = JsonObject(
+            mapOf(
+                "source" to JsonPrimitive(preference.sourceId),
+                "url" to JsonPrimitive(preference.url),
+            ),
+        )
+        val backupMemo = JsonObject(
+            linkedMemo(SmartSourceLinks.Link(303, "/alternative", "Alternate")).toMutableMap().apply {
+                put("j2k.custom.preferredSource.v1", preferredJson)
+            },
+        )
+        val backup = BackupManga(44, "/primary", "Example", memo = backupMemo.toString())
+        val bytes = ProtoBuf.encodeToByteArray(
+            Backup.serializer(),
+            Backup(backupManga = listOf(backup)),
+        )
+        val decoded = ProtoBuf.decodeFromByteArray(Backup.serializer(), bytes).backupManga.single()
+        assertEquals(preference, SmartSourceLinks.preferredFromMemo(decoded.getMangaImpl().memo))
+        val merged = SmartSourceLinks.mergeOnRestore(linkedMemo(), decoded.getMangaImpl().memo)
+        assertEquals(preference, SmartSourceLinks.preferredFromMemo(merged))
+        assertEquals(JsonPrimitive("must survive"), merged["some.extension.memo"])
+    }
+
+    @Test
+    fun currentExplicitPreferredSourceWinsOverOlderBackup() {
+        fun memo(sourceId: Long, url: String): JsonObject =
+            JsonObject(
+                linkedMemo().toMutableMap().apply {
+                    put(
+                        "j2k.custom.preferredSource.v1",
+                        JsonObject(
+                            mapOf(
+                                "source" to JsonPrimitive(sourceId),
+                                "url" to JsonPrimitive(url),
+                            ),
+                        ),
+                    )
+                },
+            )
+        val merged = SmartSourceLinks.mergeOnRestore(memo(22, "/current"), memo(33, "/backup"))
+        assertEquals(SmartSourceLinks.Preferred(22, "/current"), SmartSourceLinks.preferredFromMemo(merged))
+    }
+
+    @Test
+    fun invalidPreferredSourceIsRejectedEvenWithoutLinksArray() {
+        val bad = """{"j2k.custom.preferredSource.v1":{"source":"garbage","url":"/manga"}}"""
+        val issues = SmartSourceLinks.backupLinkIssues(bad, 11, "/primary")
+        assertTrue(issues.any { "Invalid preferred" in it })
+    }
+
+    @Test
+    fun sourceMetadataRefreshPreservesExplicitPreference() {
+        val original = MangaImpl().apply {
+            source = 11
+            url = "/main"
+            title = "A"
+            memo = JsonObject(
+                mapOf(
+                    "j2k.custom.preferredSource.v1" to JsonObject(
+                        mapOf("source" to JsonPrimitive(11), "url" to JsonPrimitive("/main")),
+                    ),
+                ),
+            )
+        }
+        val updated = MangaImpl().apply {
+            source = 11
+            url = "/main"
+            title = "A"
+            memo = JsonObject(mapOf("upstream" to JsonPrimitive("fresh")))
+        }
+        original.copyFrom(updated)
+        assertEquals(SmartSourceLinks.Preferred(11, "/main"), SmartSourceLinks.preferred(original))
+        assertEquals(JsonPrimitive("fresh"), original.memo["upstream"])
+    }
 }
