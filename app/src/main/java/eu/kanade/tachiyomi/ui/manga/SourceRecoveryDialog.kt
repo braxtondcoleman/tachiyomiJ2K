@@ -9,11 +9,20 @@ import eu.kanade.tachiyomi.data.library.SourceHealthLedger
 import eu.kanade.tachiyomi.data.library.SourceRecoveryInbox
 import eu.kanade.tachiyomi.data.library.SourceRecoveryPlanner
 import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.source.BrowseController
 import eu.kanade.tachiyomi.ui.source.browse.BrowseSourceController
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
@@ -32,6 +41,7 @@ object SourceRecoveryDialog {
         val title: String,
         val original: Boolean,
         val coverage: SourceRecoveryPlanner.Coverage,
+        val warning: String? = null,
     )
 
     fun show(controller: MangaDetailsController) {
@@ -157,24 +167,109 @@ object SourceRecoveryDialog {
                 }
             }
             if (stored.isEmpty()) return@launch
-            val current = controller.activity ?: return@launch
-            val items: Array<CharSequence> = stored.map { s ->
-                val state = when (s.coverage.state) {
-                    SourceRecoveryPlanner.CoverageState.STORED_ONLY -> "stored snapshot"
-                    SourceRecoveryPlanner.CoverageState.FETCHED -> "recently fetched"
-                    SourceRecoveryPlanner.CoverageState.UNKNOWN -> "coverage unknown"
-                    SourceRecoveryPlanner.CoverageState.EXTENSION_UNAVAILABLE -> "extension missing"
+            presentCoverage(controller, stored)
+        }
+    }
+
+    private fun presentCoverage(controller: MangaDetailsController, stored: List<StoredSource>) {
+        val activity = controller.activity ?: return
+        val items: Array<CharSequence> = stored.map { s ->
+            val state = when (s.coverage.state) {
+                SourceRecoveryPlanner.CoverageState.STORED_ONLY -> "stored snapshot"
+                SourceRecoveryPlanner.CoverageState.FETCHED -> "fresh chapter list"
+                SourceRecoveryPlanner.CoverageState.UNKNOWN -> "coverage unknown"
+                SourceRecoveryPlanner.CoverageState.EXTENSION_UNAVAILABLE -> "extension missing"
+            }
+            val warning = s.warning?.let { " · $it" }.orEmpty()
+            "${if (s.original) "★ Original · " else ""}${s.title}\n${s.coverage.total} chapters · $state$warning"
+        }.map { it as CharSequence }.toTypedArray()
+        activity.materialAlertDialog()
+            .setTitle("Chapter coverage · original and linked")
+            .setItems(items) { _, index ->
+                preview(controller, stored.first(), stored[index])
+            }
+            .setPositiveButton("Check live") { _, _ -> checkLive(controller, stored) }
+            .setNeutralButton("Find replacements") { _, _ -> SmartSourcesDialog.search(controller) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Explicit, bounded and cancellable current-coverage check. This does not
+     * write or sync chapter rows, and does not record speculative results as
+     * library-update health history. One request per confirmed linked manga.
+     */
+    private fun checkLive(controller: MangaDetailsController, stored: List<StoredSource>) {
+        val activity = controller.activity ?: return
+        var job: Job? = null
+        val progress = activity.materialAlertDialog()
+            .setTitle("Checking confirmed chapter lists")
+            .setMessage("Checking up to 25 sources. No manga or chapter records will be changed.")
+            .setNegativeButton(android.R.string.cancel) { _, _ -> job?.cancel() }
+            .create()
+        progress.setOnCancelListener { job?.cancel() }
+        progress.show()
+        job = controller.viewScope.launch {
+            val updated = try {
+                withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        val limiter = Semaphore(3)
+                        stored.map { item ->
+                            async {
+                                limiter.withPermit {
+                                    val source = controller.presenter.sourceManager.get(item.sourceId)
+                                        ?: return@withPermit item.copy(
+                                            coverage = item.coverage.copy(
+                                                state = SourceRecoveryPlanner.CoverageState.EXTENSION_UNAVAILABLE,
+                                            ),
+                                            warning = "extension unavailable",
+                                        )
+                                    try {
+                                        val chapters = withTimeoutOrNull(12_000L) {
+                                            val fromDb = controller.presenter.db
+                                                .getManga(item.url, item.sourceId).executeAsBlocking()
+                                            val remote = fromDb ?: SManga.create().apply {
+                                                url = item.url
+                                                title = item.title
+                                            }
+                                            val details = if (remote.initialized) remote else source.getMangaDetails(remote)
+                                            source.getChapterList(details)
+                                        }
+                                        if (chapters == null) {
+                                            item.copy(warning = "timeout; availability unknown")
+                                        } else {
+                                            item.copy(
+                                                coverage = item.coverage.copy(
+                                                    state = SourceRecoveryPlanner.CoverageState.FETCHED,
+                                                    total = chapters.size,
+                                                    numbered = chapters.mapNotNull { chapter ->
+                                                        chapter.chapter_number.takeIf { it.isFinite() && it >= 1f }
+                                                    }.toSet(),
+                                                    lastSuccessAt = System.currentTimeMillis(),
+                                                ),
+                                                warning = null,
+                                            )
+                                        }
+                                    } catch (cancel: CancellationException) {
+                                        throw cancel
+                                    } catch (error: Exception) {
+                                        item.copy(
+                                            warning = SourceRecoveryPlanner.classify(
+                                                error.message ?: error.javaClass.simpleName,
+                                            ).label,
+                                        )
+                                    }
+                                }
+                            }
+                        }.awaitAll()
+                    }
                 }
-                "${if (s.original) "★ Original · " else ""}${s.title}\n${s.coverage.total} stored chapters · $state"
-            }.map { it as CharSequence }.toTypedArray()
-            current.materialAlertDialog()
-                .setTitle("Chapter coverage (stored evidence)")
-                .setItems(items) { _, index ->
-                    preview(controller, stored.first(), stored[index])
-                }
-                .setNeutralButton("Find replacements") { _, _ -> SmartSourcesDialog.search(controller) }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+            } catch (cancel: CancellationException) {
+                return@launch
+            } finally {
+                progress.dismiss()
+            }
+            if (controller.activity != null) presentCoverage(controller, updated)
         }
     }
 
