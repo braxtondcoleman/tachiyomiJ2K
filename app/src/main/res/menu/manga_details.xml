@@ -76,6 +76,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_discover_related"
+        android:title="Discover similar manga"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_smart_sources"
         android:title="@string/smart_sources_search"
         app:showAsAction="never" />

@@ -27,6 +27,7 @@ import eu.kanade.tachiyomi.ui.library.LibraryPresenter
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
+import eu.kanade.tachiyomi.ui.manga.DiscoveryDialog
 import eu.kanade.tachiyomi.ui.extension.ExtensionIntelligenceDialog
 import eu.kanade.tachiyomi.ui.source.BrowseController
 import eu.kanade.tachiyomi.util.system.launchIO
@@ -298,6 +299,21 @@ class SettingsLibraryController : SettingsController() {
                             .setMessage(report.take(12_000))
                             .setPositiveButton(android.R.string.ok, null)
                             .show()
+                    }
+                }
+
+                preference {
+                    key = "j2k_personalized_discovery"
+                    isPersistent = false
+                    title = "Discover manga for me"
+                    summary = "Popular titles from installed sources, ranked locally by genres and authors in your library"
+                    onClick {
+                        val host = activity as? androidx.appcompat.app.AppCompatActivity
+                        if (host != null) {
+                            DiscoveryDialog.show(host, viewScope, db, Injekt.get(), preferences) { manga ->
+                                router.pushController(MangaDetailsController(manga, true).withFadeTransaction())
+                            }
+                        }
                     }
                 }
 
