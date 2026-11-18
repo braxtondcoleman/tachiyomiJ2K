@@ -111,8 +111,7 @@ object LibraryAuditDialog {
                     2 -> listEntries(activity, sources, data, report.failedUpdates, "Unresolved update failures", openDetails)
                     3 -> listEntries(activity, sources, data, report.sourcesNeedingAttention, "Source health warnings", openDetails)
                     4 -> listEntries(activity, sources, data, report.emptyChapterLists, "No stored chapters", openDetails)
-                    5 -> listEntries(activity, sources, data, data.report.groups.flatMap { it.copies }
-                        .filter { it.linkedSources > 0 }.distinctBy { it.id }, "Confirmed links", openDetails)
+                    5 -> listEntries(activity, sources, data, report.linkedEntries, "Confirmed links", openDetails)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -210,11 +209,12 @@ object LibraryAuditDialog {
     ) {
         val primary = group.suggestedPrimary
         val target = data.mangas[selected.id] ?: return
-        val downloaded: Int? = try {
-            Injekt.get<DownloadManager>().getDownloadCount(target)
-        } catch (_: Exception) {
-            null
+        scope.launch {
+        val downloaded: Int? = withContext(Dispatchers.IO) {
+            try { Injekt.get<DownloadManager>().getDownloadCount(target) }
+            catch (_: Exception) { null }
         }
+        if (activity.isFinishing || activity.isDestroyed) return@launch
         val summary = buildString {
             appendLine(target.title)
             appendLine("Source: ${sources.getOrStub(selected.sourceId).name}")
@@ -255,5 +255,6 @@ object LibraryAuditDialog {
             }
         }
         dialog.show()
+        }
     }
 }
