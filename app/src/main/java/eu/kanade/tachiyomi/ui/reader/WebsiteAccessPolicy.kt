@@ -9,14 +9,20 @@ import java.util.Locale
  * replacement for source-extension trust or server-side protection.
  */
 object WebsiteAccessPolicy {
-    fun host(url: String?): String? = try {
-        val uri = URI(url?.trim() ?: return null)
-        if (!uri.scheme.equals("https", ignoreCase = true)) return null
-        if (!uri.userInfo.isNullOrEmpty()) return null
-        if (uri.port != -1 && uri.port != 443) return null
-        uri.host?.lowercase(Locale.ROOT)?.trimEnd('.')?.takeIf { it.isNotBlank() }
-    } catch (_: Exception) {
-        null
+    fun host(url: String?): String? {
+        val address = url?.trim() ?: return null
+        return try {
+            val uri = URI(address)
+            if (!uri.scheme.equals("https", ignoreCase = true) ||
+                !uri.userInfo.isNullOrEmpty() || (uri.port != -1 && uri.port != 443)
+            ) {
+                null
+            } else {
+                uri.host?.lowercase(Locale.ROOT)?.trimEnd('.')?.takeIf { it.isNotBlank() }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun sameSourceHost(baseUrl: String, candidate: String?): Boolean {
