@@ -233,4 +233,45 @@ class SmartSourceLinksBackupTest {
         assertEquals(SmartSourceLinks.Preferred(11, "/main"), SmartSourceLinks.preferred(original))
         assertEquals(JsonPrimitive("fresh"), original.memo["upstream"])
     }
+
+    @Test
+    fun linkedNonFavoriteChapterProgressSurvivesProtobufBackupWithoutBecomingLibraryFavorite() {
+        val linked = SmartSourceLinks.Link(202, "/second", "Second source")
+        val main = BackupManga(
+            source = 101,
+            url = "/main",
+            title = "Same story",
+            favorite = true,
+            memo = linkedMemo(linked).toString(),
+        )
+        val alternate = BackupManga(
+            source = 202,
+            url = "/second",
+            title = "Same story on second source",
+            favorite = false,
+            chapters = listOf(
+                BackupChapter(
+                    url = "/second/chapter/9",
+                    name = "Chapter 9",
+                    read = true,
+                    bookmark = true,
+                    lastPageRead = 3,
+                    chapterNumber = 9f,
+                ),
+            ),
+            history = listOf(BackupHistory("/second/chapter/9", 98765)),
+        )
+        val bytes = ProtoBuf.encodeToByteArray(
+            Backup.serializer(),
+            Backup(backupManga = listOf(main, alternate)),
+        )
+        val decoded = ProtoBuf.decodeFromByteArray(Backup.serializer(), bytes)
+        val source = decoded.backupManga.single { it.source == 202L }
+        assertFalse(source.favorite)
+        assertTrue(source.chapters.single().read)
+        assertTrue(source.chapters.single().bookmark)
+        assertEquals(3, source.chapters.single().lastPageRead)
+        assertEquals(98765L, source.history.single().lastRead)
+        assertEquals(listOf(linked), SmartSourceLinks.fromMemo(decoded.backupManga.single { it.source == 101L }.getMangaImpl().memo))
+    }
 }
