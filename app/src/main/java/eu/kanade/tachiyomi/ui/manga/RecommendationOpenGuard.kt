@@ -6,8 +6,9 @@ import eu.kanade.tachiyomi.data.database.models.Manga
  * discovery search result. Never navigate with a transient unsaved model.
  */
 object RecommendationOpenGuard {
-    fun canOpen(manga: Manga?): Boolean =
-        manga?.id?.let { it > 0L } == true &&
-            manga.url.isNotBlank() &&
-            manga.source >= 0L
+    fun canOpen(manga: Manga?): Boolean {
+        if (manga == null) return false
+        return manga.id?.let { it > 0L } == true &&
+            manga.url.isNotBlank() && manga.source >= 0L
+    }
 }
