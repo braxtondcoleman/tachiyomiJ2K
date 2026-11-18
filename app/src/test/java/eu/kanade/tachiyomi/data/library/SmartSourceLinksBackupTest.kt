@@ -91,6 +91,25 @@ class SmartSourceLinksBackupTest {
     }
 
     @Test
+    fun restoreGuardRejectsCorruptionBeforeTheDatabaseIsTouched() {
+        val corrupt = BackupManga(
+            source = 9,
+            url = "/one",
+            title = "Corrupt",
+            memo = """{"j2k.custom.linkedSources.v1":[{"source":-1,"url":"/bad"}]}""",
+        )
+        var threw = false
+        try {
+            SmartSourceLinks.requireValidBackupEntries(listOf(corrupt))
+        } catch (_: IllegalStateException) {
+            threw = true
+        }
+        assertTrue(threw)
+        // A legacy backup with no source links is always eligible for restoration.
+        SmartSourceLinks.requireValidBackupEntries(listOf(BackupManga(9, "/one", "Legacy")))
+    }
+
+    @Test
     fun invalidOrDuplicatedLinksAreRejectedByBackupValidation() {
         val duplicated = linkedMemo(
             SmartSourceLinks.Link(77, "/same", "A"),
