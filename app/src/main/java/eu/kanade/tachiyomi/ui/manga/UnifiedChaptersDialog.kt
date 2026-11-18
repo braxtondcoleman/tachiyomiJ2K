@@ -101,7 +101,7 @@ object UnifiedChaptersDialog {
                 }
                 val progressTag = if (row.isRead) " · read" else if (row.isBookmarked) " · bookmarked" else ""
                 "${row.variants.first().chapterName}$tag$progressTag"
-            }.toTypedArray()
+            }.map { it as CharSequence }.toTypedArray()
             currentActivity.materialAlertDialog()
                 .setTitle("Unified chapters — preview")
                 .setMessage(summary)
@@ -231,8 +231,8 @@ object UnifiedChaptersDialog {
             } else {
                 " · open manga page"
             }
-            "$recommended${target.sourceName}$health$route\\n${target.variant.chapterName}"
-        }.toTypedArray()
+            "$recommended${target.sourceName}$health$route\n${target.variant.chapterName}"
+        }.map { it as CharSequence }.toTypedArray()
         activity.materialAlertDialog()
             .setTitle(row.variants.first().chapterName)
             .setMessage("Choose the actual source. Reading progress stays with its original chapter.")
@@ -240,7 +240,7 @@ object UnifiedChaptersDialog {
                 val selected = targets[which]
                 activity.materialAlertDialog()
                     .setTitle(selected.sourceName)
-                    .setMessage("Open: ${selected.variant.chapterName}\\nOr remember this source preference for this manga.")
+                    .setMessage("Open: ${selected.variant.chapterName}\nOr remember this source preference for this manga.")
                     .setPositiveButton("Open") { _, _ -> open(controller, selected) }
                     .setNeutralButton("Prefer source") { _, _ ->
                         controller.viewScope.launch {
