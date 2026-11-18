@@ -12,9 +12,15 @@ on:
 permissions:
   contents: read
 
+# Never let a feature-branch workflow consume the permanent release signing key.
+concurrency:
+  group: j2k-permanent-signed-release
+  cancel-in-progress: false
+
 jobs:
   signed-build:
     name: Build and validate user-signed APK
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     env:
       J2K_SIGNING_KEY_B64: ${{ secrets.J2K_SIGNING_KEY_B64 }}
@@ -53,7 +59,7 @@ jobs:
           printf '%s' "$J2K_SIGNING_KEY_B64" | base64 --decode > "$RUNNER_TEMP/j2k-custom.jks"
           chmod 600 "$RUNNER_TEMP/j2k-custom.jks"
           echo "J2K_RELEASE_KEYSTORE=$RUNNER_TEMP/j2k-custom.jks" >> "$GITHUB_ENV"
-          keytool -list -keystore "$RUNNER_TEMP/j2k-custom.jks" -storepass "$J2K_STORE_PASSWORD" -alias "$J2K_KEY_ALIAS" >/dev/null
+          keytool -list -keystore "$RUNNER_TEMP/j2k-custom.jks" -storepass:env J2K_STORE_PASSWORD -alias "$J2K_KEY_ALIAS" >/dev/null
       - name: Run JVM safety regressions
         run: ./gradlew :app:testStandardDebugUnitTest --stacktrace
       - name: Build signed release
