@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.library
 
+import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Manga
 import kotlinx.serialization.json.JsonArray
@@ -77,6 +78,21 @@ object SmartSourceLinks {
             }
         }
         return errors
+    }
+
+    /**
+     * Always call before restoring any library rows. Failing before transactions
+     * prevents partly-restored libraries when portable source links are corrupt.
+     */
+    fun requireValidBackupEntries(entries: List<BackupManga>) {
+        entries.forEach { manga ->
+            val issues = backupLinkIssues(manga.memo, manga.source, manga.url)
+            if (issues.isNotEmpty()) {
+                throw IllegalStateException(
+                    "Invalid linked-source metadata for ${manga.title.take(90)}: ${issues.first()}",
+                )
+            }
+        }
     }
 
     private fun withLinks(memo: JsonObject, links: List<Link>): JsonObject {
