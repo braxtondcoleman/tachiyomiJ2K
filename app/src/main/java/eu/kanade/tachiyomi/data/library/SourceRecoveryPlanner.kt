@@ -70,7 +70,13 @@ object SourceRecoveryPlanner {
         val shared = original.numbered.intersect(alternate.numbered).size
         val additional = (alternate.numbered - original.numbered).size
         val missing = (original.numbered - alternate.numbered).size
-        val verified = original.isFresh && alternate.isFresh
+        // A fresh list may still have unrecognized/special chapter numbers.
+        // Call numbered coverage verified only when EVERY chapter has a unique,
+        // recognized number in both fresh lists. Otherwise gaps stay tentative.
+        val verified = original.isFresh && alternate.isFresh &&
+            original.total > 0 && alternate.total > 0 &&
+            original.numbered.size == original.total &&
+            alternate.numbered.size == alternate.total
         val good = alternate.state != CoverageState.EXTENSION_UNAVAILABLE && alternate.total > 0
         return Comparison(
             originalCount = original.total,
