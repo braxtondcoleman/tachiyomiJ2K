@@ -1220,6 +1220,14 @@ class MangaDetailsController :
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_discover_related -> {
+                val host = activity as? androidx.appcompat.app.AppCompatActivity
+                if (host != null) {
+                    DiscoveryDialog.show(host, viewScope, presenter.db, presenter.sourceManager, presenter.preferences, presenter.manga) {
+                        router.pushController(MangaDetailsController(it, true).withFadeTransaction())
+                    }
+                }
+            }
             R.id.action_smart_sources -> SmartSourcesDialog.search(this)
             R.id.action_linked_sources -> SmartSourcesDialog.linked(this)
             R.id.action_source_recovery -> SourceRecoveryDialog.show(this)
