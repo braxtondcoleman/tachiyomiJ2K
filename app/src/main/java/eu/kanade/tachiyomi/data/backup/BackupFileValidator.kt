@@ -35,17 +35,7 @@ class BackupFileValidator(
             throw IllegalStateException(context.getString(R.string.backup_has_no_manga))
         }
 
-        // A truncated link record can otherwise silently disappear at restore
-        // time. Validate portable (source ID + URL) links before allowing a
-        // backup to be considered healthy, while accepting missing extensions.
-        backup.backupManga.forEach { manga ->
-            val issues = SmartSourceLinks.backupLinkIssues(manga.memo, manga.source, manga.url)
-            if (issues.isNotEmpty()) {
-                throw IllegalStateException(
-                    "Invalid linked-source metadata for ${manga.title.take(90)}: ${issues.first()}",
-                )
-            }
-        }
+        SmartSourceLinks.requireValidBackupEntries(backup.backupManga)
 
         val sources = backup.backupSources.map { it.sourceId to it.name }.toMap()
         val missingSources =
