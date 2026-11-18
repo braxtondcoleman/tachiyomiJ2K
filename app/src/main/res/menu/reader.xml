@@ -3,6 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_linked_continuity"
+        android:title="Continue from linked source"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_shift_double_page"
         android:icon="@drawable/ic_page_next_outline_24dp"
         android:title="@string/shift_one_page_over"
