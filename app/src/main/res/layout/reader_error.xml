@@ -31,6 +31,15 @@
         android:visibility="gone" />
 
     <eu.kanade.tachiyomi.ui.reader.viewer.ReaderButton
+        android:id="@+id/action_verify_website"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:layout_margin="8dp"
+        android:text="@string/j2k_reader_verify_website"
+        android:visibility="gone" />
+
+    <eu.kanade.tachiyomi.ui.reader.viewer.ReaderButton
         android:id="@+id/action_try_alternate"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
