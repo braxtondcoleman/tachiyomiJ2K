@@ -24,7 +24,15 @@
 
 ## 3. Create your permanent signing identity ONCE (private and user-owned)
 
-Use an up-to-date Java JDK with `keytool` installed on a device you control. Example in PowerShell on Windows:
+**Fast Windows setup:** Install Java JDK (`keytool`) and [GitHub CLI](https://cli.github.com/), then sign in locally with `gh auth login`. From your repository checkout run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup_j2k_signing.ps1
+```
+
+The script creates `$HOME\J2K-Custom.jks` once (or reuses that file without overwriting it), prompts privately for its password, reads the public certificate fingerprint, and securely sets all five repository Actions secrets using GitHub CLI. **It never commits the private key.** Make an encrypted offline copy of the file and record the password separately. If GitHub CLI authentication or a secret upload fails, fix the issue and rerun the same script; it reuses the existing key. GitHub release builds only run from `master`, after this branch is reviewed and merged.
+
+**Manual alternative:** Use an up-to-date Java JDK with `keytool` installed on a device you control. Example in PowerShell on Windows:
 
 ```powershell
 keytool -genkeypair -v -storetype PKCS12 -keystore "$HOME\J2K-Custom.jks" -alias j2kcustom -keyalg RSA -keysize 3072 -validity 10000
