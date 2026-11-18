@@ -36,10 +36,6 @@ object IssueCenterDialog {
         ).map { it as CharSequence }.toTypedArray()
         val dialog = activity.materialAlertDialog()
             .setTitle("Fix issues · ${issues.size} unresolved")
-            .setMessage(
-                if (issues.isEmpty()) "No recorded update failures. You can still inspect library and extension health below."
-                else null,
-            )
             .setItems(entries, null)
             .setNeutralButton("Auto-fix settings") { _, _ -> AutoFixSettingsDialog.show(activity) }
             .setNegativeButton("Back to tools", null)
