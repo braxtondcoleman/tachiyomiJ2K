@@ -59,7 +59,7 @@ object LibraryAuditPlanner {
                 // than a common generic title. Unknown authors form a separate
                 // review subgroup, never bridging two conflicting authors.
                 titleMatches.groupBy { entry ->
-                    entry.author?.let(DiscoveryPlanner::normalize)?.takeIf { it.length >= 4 } ?: "UNKNOWN_AUTHOR"
+                    entry.author?.let(DiscoveryPlanner::normalize)?.takeIf { it.isNotBlank() } ?: "UNKNOWN_AUTHOR"
                 }.values.asSequence()
             }
             .filter { it.size > 1 && it.map { m -> m.sourceId }.distinct().size > 1 }
