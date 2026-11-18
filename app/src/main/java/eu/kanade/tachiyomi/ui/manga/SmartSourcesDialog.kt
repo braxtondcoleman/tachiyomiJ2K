@@ -173,6 +173,9 @@ object SmartSourcesDialog {
                         .setNegativeButton(android.R.string.cancel, null)
                         .show()
                 }
+                .setNeutralButton("Unified chapters") { _, _ ->
+                    UnifiedChaptersDialog.show(controller)
+                }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
