@@ -207,6 +207,9 @@ class BackupRestorer(
                 // Manga in database
                 // Copy information from manga already in database
                 manga.id = dbManga.id
+                // A source-specific linked backup is intentionally not a
+                // favorite. Never demote a currently favorited manga on restore.
+                manga.favorite = manga.favorite || dbManga.favorite
                 manga.filtered_scanlators = dbManga.filtered_scanlators
                 // Preserve *both* the backup's portable source links and the
                 // existing installation's links. copyFrom() replaces memo, so
