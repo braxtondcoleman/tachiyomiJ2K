@@ -27,7 +27,11 @@ class CloudflareInterceptor(
 
     override fun shouldIntercept(response: Response): Boolean {
         // Check if Cloudflare anti-bot is on
-        return response.code in ERROR_CODES && response.header("Server") in SERVER_CHECK
+        return CloudflareChallengeSignal.isChallengeResponse(
+            response.code,
+            response.header("Server"),
+            response.header("cf-mitigated"),
+        )
     }
 
     override fun intercept(
@@ -48,6 +52,9 @@ class CloudflareInterceptor(
             // Because OkHttp's enqueue only handles IOExceptions, wrap the exception so that
             // we don't crash the entire app
         } catch (e: CloudflareBypassException) {
+            // Automated clearance was insufficient. Offer a visible, user-operated
+            // challenge only when the matching source is open in the reader.
+            CloudflareChallengeSignal.reportFailure(request.url.host)
             throw IOException(context.getString(R.string.failed_to_bypass_cloudflare))
         } catch (e: Exception) {
             throw IOException(e)
@@ -145,8 +152,6 @@ class CloudflareInterceptor(
     }
 }
 
-private val ERROR_CODES = listOf(403, 503)
-private val SERVER_CHECK = arrayOf("cloudflare-nginx", "cloudflare")
 private val COOKIE_NAMES = listOf("cf_clearance")
 
 private class CloudflareBypassException : Exception()
