@@ -65,9 +65,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
-          CERT="$("$TOOLS/apksigner" verify --print-certs ci-apks/baseline.apk |
-              sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          # Derive the expected public certificate directly from the temporary
+          # signing identity. The APK verifier independently reads each APK's
+          # actual signer and checks for an exact match.
+          CERT="$(keytool -list -v -keystore "$J2K_RELEASE_KEYSTORE" \
+            -alias "$J2K_KEY_ALIAS" -storepass:env J2K_STORE_PASSWORD |
+            sed -nE 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n1 |
+            tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          [[ "$CERT" =~ ^[a-f0-9]{64}$ ]] || {
+            echo "::error::Could not extract a valid SHA256 from temporary keystore"
+            exit 1
+          }
           bash scripts/verify_apk_identity.sh ci-apks/baseline.apk \
             eu.kanade.tachiyomi.customj2k.debug 114 "$CERT"
           bash scripts/verify_apk_identity.sh ci-apks/upgrade.apk \
