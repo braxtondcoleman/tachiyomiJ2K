@@ -345,6 +345,7 @@ class WebtoonPageHolder(
             } else {
                 viewer.activity.viewModel.getChapterUrl(page?.chapter?.chapter)
             }
+        errorLayout?.retryPageAction = { page?.let { it.chapter.pageLoader?.retryPage(it) } }
         return errorLayout!!.configureView(imageUrl)
     }
 
