@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.database.models.MangaCategory
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
+import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.preference.AndroidPreferenceStore
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys
@@ -205,7 +206,12 @@ class BackupRestorer(
                 // Copy information from manga already in database
                 manga.id = dbManga.id
                 manga.filtered_scanlators = dbManga.filtered_scanlators
+                // Preserve *both* the backup's portable source links and the
+                // existing installation's links. copyFrom() replaces memo, so
+                // snapshot the incoming backup memo first.
+                val backupMemo = manga.memo
                 manga.copyFrom(dbManga)
+                manga.memo = SmartSourceLinks.mergeOnRestore(manga.memo, backupMemo)
                 db.insertManga(manga).executeAsBlocking()
                 // Fetch rest of manga information
                 restoreNewManga(
