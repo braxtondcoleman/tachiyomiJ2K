@@ -336,8 +336,26 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
                 if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@onEach
                 val source = viewModel.getSource() ?: return@onEach
                 if (!WebsiteAccessPolicy.sameSourceHost(source.baseUrl, "https://${failure.host}/")) return@onEach
-                if (viewModel.getCurrentChapter() == null) return@onEach
-                requestWebsiteVerification(viewModel.getChapterUrl() ?: source.baseUrl)
+                val currentChapterId = viewModel.getCurrentChapter()?.chapter?.id ?: return@onEach
+                // A background update or an adjacent-chapter preload can hit a
+                // challenge on the same host. Don't interrupt a healthy page.
+                // Allow the failed OkHttp request to update the page/chapters
+                // before deciding whether interactive verification is needed.
+                binding.root.postDelayed({
+                    if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@postDelayed
+                    val chapter = viewModel.getCurrentChapter() ?: return@postDelayed
+                    if (chapter.chapter.id != currentChapterId) return@postDelayed
+                    val active = selectedPageForWebsite
+                        ?.takeIf { it.chapter.chapter.id == currentChapterId }
+                    val currentPageFailed = active?.status == Page.State.ERROR
+                    val chapterFailed = chapter.state is ReaderChapter.State.Error
+                    if (currentPageFailed || chapterFailed) {
+                        val url = if (currentPageFailed) active?.imageUrl
+                            ?: viewModel.getChapterUrl()
+                        else viewModel.getChapterUrl()
+                        requestWebsiteVerification(url ?: source.baseUrl)
+                    }
+                }, 900L)
             }
             .launchIn(scope)
 
