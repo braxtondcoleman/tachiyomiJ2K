@@ -152,6 +152,7 @@ class CloudflareInterceptor(
     }
 }
 
+private val ERROR_CODES = listOf(403, 503)
 private val COOKIE_NAMES = listOf("cf_clearance")
 
 private class CloudflareBypassException : Exception()
