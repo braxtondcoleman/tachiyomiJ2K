@@ -112,20 +112,32 @@ object UnifiedChaptersDialog {
             if (result.rows.size == MAX_INDEXED_ROWS) appendLine("First $MAX_INDEXED_ROWS rows indexed.")
             append("Select a chapter to choose its actual source; changes to progress stay source-specific.")
         }
-        val options: Array<CharSequence> = currentRows.map { row ->
-            val state = when {
-                row.ambiguous -> " ? uncertain"
-                row.isMerged -> " ✓ ${row.variants.size} sources"
-                else -> ""
-            }
-            val progress = if (row.isRead) " · read" else if (row.isBookmarked) " · bookmarked" else ""
-            "${row.variants.first().chapterName}$state$progress"
-        }.map { it as CharSequence }.toTypedArray()
+        val options: Array<CharSequence> = (
+            currentRows.map { row ->
+                val state = when {
+                    row.ambiguous -> " ? uncertain"
+                    row.isMerged -> " ✓ ${row.variants.size} sources"
+                    else -> ""
+                }
+                val progress = if (row.isRead) " · read" else if (row.isBookmarked) " · bookmarked" else ""
+                "${row.variants.first().chapterName}$state$progress"
+            } + "ⓘ Coverage summary, source errors and gaps"
+        ).map { it as CharSequence }.toTypedArray()
         val dialog = activity.materialAlertDialog()
-            .setTitle("Unified chapters — page ${page + 1}")
-            .setMessage(summary)
+            .setTitle("Unified chapters · ${page + 1}/${lastPage + 1}")
             .setItems(options) { _, position ->
-                choose(controller, mangaId, currentRows[position], byId)
+                if (position == currentRows.size) {
+                    activity.materialAlertDialog()
+                        .setTitle("Unified chapter coverage")
+                        .setMessage(summary)
+                        .setPositiveButton("Back to chapters") { _, _ ->
+                            showPage(controller, mangaId, report, result, byId, page)
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                } else {
+                    choose(controller, mangaId, currentRows[position], byId)
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
         if (page < lastPage) {
@@ -268,7 +280,6 @@ object UnifiedChaptersDialog {
         }.map { it as CharSequence }.toTypedArray()
         activity.materialAlertDialog()
             .setTitle(row.variants.first().chapterName)
-            .setMessage("Choose the actual source. Reading progress stays with its original chapter.")
             .setItems(options) { _, which ->
                 val selected = targets[which]
                 activity.materialAlertDialog()
