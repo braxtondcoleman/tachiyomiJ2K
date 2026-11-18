@@ -31,9 +31,16 @@ identity="$("$build_tools/aapt" dump badging "$apk" | grep '^package: ' | head -
   echo "Wrong APK version code: $identity" >&2
   exit 1
 }
-actual_cert="$("$build_tools/apksigner" verify --print-certs "$apk" |
-  sed -n 's/^Signer #1 certificate SHA-256 digest: //p' |
-  tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+# Accept harmless leading whitespace or tool formatting differences, but never
+# accept an absent or malformed signer fingerprint.
+cert_output="$("$build_tools/apksigner" verify --print-certs "$apk")"
+actual_cert="$(printf '%s\n' "$cert_output" |
+  sed -nE 's/^.*Signer[[:space:]]+#[0-9]+[[:space:]]+certificate[[:space:]]+SHA-256[[:space:]]+digest:[[:space:]]*//p' |
+  head -n1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+[[ "$actual_cert" =~ ^[a-f0-9]{64}$ ]] || {
+  echo "Unable to extract a valid SHA-256 signing certificate from APK" >&2
+  exit 1
+}
 [[ "$actual_cert" == "$expected_cert" ]] || {
   echo "APK signing certificate mismatch; refusing release" >&2
   exit 1
