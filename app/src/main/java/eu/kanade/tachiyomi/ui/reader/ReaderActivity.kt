@@ -85,6 +85,7 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.Manga
+import eu.kanade.tachiyomi.data.library.ReaderContinuityPlanner
 import eu.kanade.tachiyomi.data.preference.asImmediateFlowIn
 import eu.kanade.tachiyomi.data.preference.toggle
 import eu.kanade.tachiyomi.data.track.TrackService
@@ -153,6 +154,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -450,6 +452,22 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
             .distinctUntilChanged()
             .filterNotNull()
             .onEach(::setChapters)
+            .launchIn(lifecycleScope)
+        // A page loader failure is an opportunity to *offer* a confirmed linked
+        // source, never permission to silently switch manga or transfer progress.
+        viewModel.state
+            .map { it.viewerChapters?.currChapter }
+            .distinctUntilChanged()
+            .filterNotNull()
+            .flatMapLatest { it.stateFlow }
+            .onEach { chapterState ->
+                if (chapterState is ReaderChapter.State.Error) {
+                    Snackbar.make(binding.root, "Chapter failed to load. Check linked sources?", Snackbar.LENGTH_LONG)
+                        .setAction("Find alternate") {
+                            ReaderContinuityDialog.show(this, ReaderContinuityPlanner.Direction.SAME_CHAPTER)
+                        }.show()
+                }
+            }
             .launchIn(lifecycleScope)
 
         viewModel.eventFlow
@@ -854,6 +872,7 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
      */
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_linked_continuity -> ReaderContinuityDialog.showChoice(this)
             R.id.action_shift_double_page -> {
                 shiftDoublePages()
                 manuallyShiftedPages = true
@@ -861,6 +880,15 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
             else -> return super.onOptionsItemSelected(item)
         }
         return true
+    }
+
+    /** Reader-to-reader handoff after the user explicitly selects an alternate.
+     * Save this chapter's source-specific state before closing its reader.
+     */
+    fun openLinkedChapter(manga: Manga, chapter: Chapter) {
+        viewModel.saveCurrentChapterReadingProgress()
+        startActivity(newIntent(this, manga, chapter))
+        finish()
     }
 
     fun shiftDoublePages(
