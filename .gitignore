@@ -8,3 +8,10 @@
 *.iml
 */build
 .kotlin
+
+# Private Android signing material must NEVER be committed.
+*.jks
+*.keystore
+*.p12
+*.pfx
+j2k-signing*.env

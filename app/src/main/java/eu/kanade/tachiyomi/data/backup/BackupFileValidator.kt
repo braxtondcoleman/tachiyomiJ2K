@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.backup
 import android.content.Context
 import android.net.Uri
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.util.BackupUtil
@@ -33,6 +34,8 @@ class BackupFileValidator(
         if (backup.backupManga.isEmpty()) {
             throw IllegalStateException(context.getString(R.string.backup_has_no_manga))
         }
+
+        SmartSourceLinks.requireValidBackupEntries(backup.backupManga)
 
         val sources = backup.backupSources.map { it.sourceId to it.name }.toMap()
         val missingSources =

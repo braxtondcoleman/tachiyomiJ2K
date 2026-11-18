@@ -2,7 +2,7 @@ name: Pull request Android build
 
 on:
   pull_request:
-    branches: [master, feature/reliable-library-updates]
+    branches: [master, feature/reliable-library-updates, feature/sy-multi-source-manga, feature/milestone-a-library-safety]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,8 @@ jobs:
         run: |
           mkdir -p ~/.gradle
           cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
+      - name: Run JVM backup and linked-source regression tests
+        run: ./gradlew :app:testStandardDebugUnitTest --stacktrace
       - name: Compile standard debug app
         run: ./gradlew :app:assembleStandardDebug --stacktrace
 

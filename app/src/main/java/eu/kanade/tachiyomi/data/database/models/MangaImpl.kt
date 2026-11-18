@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.database.models
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
+import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import kotlinx.serialization.json.JsonObject
@@ -112,7 +113,12 @@ open class MangaImpl : Manga {
             val provider = DownloadProvider(db.context)
             provider.renameMangaFolder(oldTitle, ogTitle, source)
         }
+        // Source refreshes often supply a fresh memo object. Preserve the
+        // J2K Custom link namespace so refreshing chapters cannot silently
+        // sever user-confirmed alternate-source associations.
+        val currentMemo = memo
         super.copyFrom(other)
+        memo = SmartSourceLinks.mergeOnRestore(memo, currentMemo)
     }
 
     override fun equals(other: Any?): Boolean {

@@ -12,9 +12,23 @@ Development happens on feature branches. **Do not install over the original J2K 
 | F05 | Medium | In-app history of last five update runs and share action | Implemented; needs build/device validation | Settings → Library → Global updates → Library update history |
 | F06 | Medium | Per-title chapter update overrides | Planned | Separate from Samsung Auto Blocker |
 | F07 | High | Fix Samsung source extension APK install friction | Deferred | Test J2K's existing Private installer first |
-| F08 | High | Separate package name and repeatable signed Android builds | Implemented in code; signing secrets and device tests still required | Custom app IDs, no upstream updater/telemetry, manual signed release workflow; never commit keystore |
+| F08 | High | Separate package name and repeatable signed Android builds | CI package built; Milestone A signed-release verification added; user secrets and phone tests still required | Custom app IDs, no upstream updater/telemetry, manual signed release workflow; never commit keystore |
 | F09 | Medium | Possible duplicates report in Library settings | CI compiled; device test pending | Now considers original/custom names and compatible authors; advisory only |
 | F10 | Later | Integrated recommendations and AI | Planned | Inside the reader, not a companion app |
+
+## Milestone A — signing, backup and restore safeguards (PR #3)
+
+**Detailed instructions and test cases:** [MILESTONE_A_LIBRARY_SAFETY.md](MILESTONE_A_LIBRARY_SAFETY.md)
+
+| ID | Priority | Change | Status | Evidence / next check |
+| --- | --- | --- | --- | --- |
+| A01 | Critical | Restore linked sources by portable ID+URL without dropping backup links on existing manga | Code committed; JVM/phone tests pending | Existing and backup link identities union; unrelated current extension memo kept |
+| A02 | Critical | Validate malformed/duplicate/self linked-source records before restore writes | Code committed; JVM/phone tests pending | Shared guard in backup validation and actual restore pipeline |
+| A03 | Critical | Protobuf backup roundtrip regression tests (read, bookmark, last page, history, links) | Tests written; latest CI pending | `:app:testStandardDebugUnitTest` in GitHub PR build |
+| A04 | High | Collision-resistant auto-backup filenames + legacy match | Code committed; tests pending | Millisecond timestamps; old minute-based names still recognized |
+| A05 | Critical | Verify signed release package, increasing versionCode and expected certificate | Code committed; signed personal release blocked on owner secrets | Five GitHub Actions secrets required; do not upload unsigned/mismatched APK |
+| A06 | High | Disposable Android v114→v115 upgrade smoke with retained app-private file | Workflow committed; CI/emulator pending | Uses temporary CI key, no user key; `upgrade_smoke.yml` |
+| A07 | Critical | Real-phone backup restore and signed app upgrade | Not verified | Test only in custom app, preserve original; Samsung Auto Blocker may ask for approval |
 
 ## Quick phone APK test
 
