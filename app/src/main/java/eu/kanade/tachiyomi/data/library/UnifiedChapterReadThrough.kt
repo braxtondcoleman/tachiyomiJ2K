@@ -43,7 +43,7 @@ object UnifiedChapterReadThrough {
         return db.inTransactionReturn {
             val manga = db.getManga(mangaUrl, sourceId).executeAsBlocking()
                 ?: MangaImpl().apply {
-                    source = sourceId
+                    this.source = sourceId
                     url = mangaUrl
                     title = mangaTitle
                     favorite = false
