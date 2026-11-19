@@ -1754,6 +1754,15 @@ open class LibraryController(
     override fun onItemLongClick(position: Int) {
         val item = adapter.getItem(position)
         if (item !is LibraryItem) return
+        // First long press is a quick-action menu; preserve native multi-select.
+        if (actionMode == null && adapter.mode != SelectableAdapter.Mode.MULTI) {
+            MangaQuickActionsDialog.show(this, item.manga) {
+                createActionModeIfNeeded()
+                setSelection(position)
+                lastClickPosition = position
+            }
+            return
+        }
         snack?.dismiss()
         if (libraryLayout == LibraryItem.LAYOUT_COVER_ONLY_GRID && actionMode == null) {
             snack =
