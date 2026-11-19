@@ -75,4 +75,34 @@ class DiscoveryPlannerTest {
         val titles = (1L..250L).map { manga(it, "Popular $it") }
         assertEquals(30, DiscoveryPlanner.recommend(profile, titles).size)
     }
+
+    @Test fun droppedMangaNoLongerCountsAsPositiveGenreSignal() {
+        val dropped = manga(1, "Boring", "Fantasy", owned = true).copy(
+            feedbackStatus = ReadingFeedback.Status.DROPPED,
+            dropReasons = setOf(ReadingFeedback.DropReason.BORING),
+        )
+        val profile = DiscoveryPlanner.profile(listOf(dropped))
+        assertTrue((profile.genreWeights["fantasy"] ?: 0) < 0)
+    }
+
+    @Test fun explicitlyTaggedSexualViolenceIsFilteredWhenRejected() {
+        val disliked = manga(1, "Stopped", "Fantasy", owned = true).copy(
+            feedbackStatus = ReadingFeedback.Status.DROPPED,
+            dropReasons = setOf(ReadingFeedback.DropReason.SEXUAL_VIOLENCE),
+        )
+        val profile = DiscoveryPlanner.profile(listOf(disliked))
+        val flagged = manga(2, "Flagged", "Fantasy, Sexual Violence")
+        val untagged = manga(3, "Untagged", "Fantasy")
+        assertEquals(listOf("Untagged"), DiscoveryPlanner.recommend(profile, listOf(flagged, untagged)).map { it.manga.title })
+    }
+
+    @Test fun previouslyDroppedRelatedTitleCanResurfaceWithExplanation() {
+        val seed = manga(1, "Loved", "Mystery", owned = true)
+        val dropped = manga(2, "Earlier Drop", "Mystery", owned = true)
+            .copy(feedbackStatus = ReadingFeedback.Status.DROPPED)
+        val profile = DiscoveryPlanner.profile(listOf(seed, dropped))
+        val found = DiscoveryPlanner.recommend(profile, listOf(dropped), seed, includeOwned = true)
+        assertEquals(1, found.size)
+        assertTrue(found.first().reasons.any { it.contains("Previously dropped") })
+    }
 }
