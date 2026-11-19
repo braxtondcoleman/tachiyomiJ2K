@@ -25,6 +25,7 @@ object LibraryToolsDialog {
             MaterialMenuSheet.MenuSheetItem(3, R.drawable.ic_library_outline_24dp, text = "Check my library"),
             MaterialMenuSheet.MenuSheetItem(4, R.drawable.ic_extension_update_24dp, text = "Extensions and sources"),
             MaterialMenuSheet.MenuSheetItem(5, R.drawable.ic_info_outline_24dp, text = "How does this work?"),
+            MaterialMenuSheet.MenuSheetItem(6, R.drawable.ic_refresh_24dp, text = "Sync MyAnimeList tracking"),
         )
         MaterialMenuSheet(
             activity,
@@ -50,6 +51,7 @@ object LibraryToolsDialog {
                     },
                 )
                 1 -> AutoFixSettingsDialog.show(activity)
+                6 -> MyAnimeListSyncDialog.show(controller)
                 2 -> DiscoveryDialog.show(
                     activity,
                     controller.viewScope,
