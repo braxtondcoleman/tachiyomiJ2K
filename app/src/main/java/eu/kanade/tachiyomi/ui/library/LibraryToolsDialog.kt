@@ -19,13 +19,13 @@ object LibraryToolsDialog {
     fun show(controller: LibraryController) {
         val activity = controller.activity as? AppCompatActivity ?: return
         val actions = listOf(
-            MaterialMenuSheet.MenuSheetItem(0, R.drawable.ic_help_outline_24dp, text = "Fix issues"),
-            MaterialMenuSheet.MenuSheetItem(1, R.drawable.ic_tune_24dp, text = "Auto-fix settings"),
-            MaterialMenuSheet.MenuSheetItem(2, R.drawable.ic_search_24dp, text = "Find manga for me"),
-            MaterialMenuSheet.MenuSheetItem(3, R.drawable.ic_library_outline_24dp, text = "Check my library"),
-            MaterialMenuSheet.MenuSheetItem(4, R.drawable.ic_extension_update_24dp, text = "Extensions and sources"),
-            MaterialMenuSheet.MenuSheetItem(5, R.drawable.ic_info_outline_24dp, text = "How does this work?"),
-            MaterialMenuSheet.MenuSheetItem(6, R.drawable.ic_refresh_24dp, text = "Sync MyAnimeList tracking"),
+            MaterialMenuSheet.MenuSheetItem(0, R.drawable.ic_help_outline_24dp, text = "Fix broken manga"),
+            MaterialMenuSheet.MenuSheetItem(2, R.drawable.ic_search_24dp, text = "Find manga"),
+            MaterialMenuSheet.MenuSheetItem(6, R.drawable.ic_refresh_24dp, text = "Sync MyAnimeList"),
+            MaterialMenuSheet.MenuSheetItem(3, R.drawable.ic_library_outline_24dp, text = "Review library health"),
+            MaterialMenuSheet.MenuSheetItem(4, R.drawable.ic_extension_update_24dp, text = "Sources and extensions"),
+            MaterialMenuSheet.MenuSheetItem(1, R.drawable.ic_tune_24dp, text = "Automatic repair settings"),
+            MaterialMenuSheet.MenuSheetItem(5, R.drawable.ic_info_outline_24dp, text = "Help"),
         )
         MaterialMenuSheet(
             activity,
