@@ -118,6 +118,9 @@ class MyAnimeList(
 
     override suspend fun refresh(track: Track): Track = api.findListItem(track) ?: add(track)
 
+    /** Read-only snapshot for reviewed library import. */
+    suspend fun listOwnMangaStatuses(): List<MyAnimeListApi.ListEntry> = api.getOwnListEntries()
+
     override suspend fun login(
         username: String,
         password: String,
