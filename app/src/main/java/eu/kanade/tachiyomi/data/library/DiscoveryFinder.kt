@@ -39,8 +39,9 @@ object DiscoveryFinder {
         val personalizedCount: Int,
     )
 
-    private fun info(manga: Manga, read: Int, healthy: Boolean = true) =
-        DiscoveryPlanner.MangaInfo(
+    private fun info(manga: Manga, read: Int, healthy: Boolean = true): DiscoveryPlanner.MangaInfo {
+        val feedback = ReadingFeedback.get(manga)
+        return DiscoveryPlanner.MangaInfo(
             manga.source,
             manga.url,
             manga.originalTitle,
@@ -49,7 +50,10 @@ object DiscoveryFinder {
             readChapters = read,
             inLibrary = true,
             sourceHealthy = healthy,
+            feedbackStatus = feedback.status,
+            dropReasons = feedback.reasons,
         )
+    }
 
     suspend fun find(
         context: Context,
