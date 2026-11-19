@@ -64,6 +64,9 @@ object MyAnimeListSyncDialog {
                         }
                     }
                 }
+                .setNeutralButton("Import MAL statuses") { _, _ ->
+                    MyAnimeListImportDialog.show(controller)
+                }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
