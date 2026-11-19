@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.OkHttpClient
@@ -234,6 +235,35 @@ class MyAnimeListApi(
                 matches
             }
         }
+
+    /** Read-only, bounded snapshot of the authenticated user's MAL manga list. */
+    data class ListEntry(val mediaId: Long, val title: String, val status: String)
+
+    suspend fun getOwnListEntries(maxEntries: Int = 5000): List<ListEntry> {
+        val result = mutableListOf<ListEntry>()
+        var offset = 0
+        while (offset < maxEntries) {
+            val page = getListPage(offset)
+            val items = page["data"]?.jsonArray.orEmpty()
+            for (row in items) {
+                val obj = row.jsonObject
+                val node = obj["node"]?.jsonObject ?: continue
+                val mediaId = node["id"]?.jsonPrimitive?.longOrNull ?: continue
+                val title = node["title"]?.jsonPrimitive?.contentOrNull
+                    ?.takeIf { it.isNotBlank() } ?: continue
+                val status = obj["list_status"]?.jsonObject
+                    ?.get("status")?.jsonPrimitive?.contentOrNull ?: continue
+                result.add(ListEntry(mediaId, title, status))
+                if (result.size >= maxEntries) return result.distinctBy { it.mediaId }
+            }
+            if (items.isEmpty() ||
+                page["paging"]?.jsonObject?.get("next")?.jsonPrimitive?.contentOrNull.isNullOrBlank()) {
+                break
+            }
+            offset += listPaginationAmount
+        }
+        return result.distinctBy { it.mediaId }
+    }
 
     private suspend fun getListPage(offset: Int): JsonObject =
         withIOContext {
