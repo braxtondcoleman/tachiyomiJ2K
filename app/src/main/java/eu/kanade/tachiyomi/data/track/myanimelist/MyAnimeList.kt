@@ -127,6 +127,20 @@ class MyAnimeList(
     suspend fun recommendationsFor(mangaId: Long): List<MyAnimeListApi.Recommendation> =
         api.getRecommendations(mangaId)
 
+    /**
+     * Explicit additive progress synchronization. Never removes a manga or
+     * replaces higher remote progress with lower local progress.
+     *
+     * Result is the confirmed target, or null when no remote list entry exists.
+     */
+    suspend fun addProgressOnly(mediaId: Long, localProgress: Int): Int? {
+        require(localProgress >= 0)
+        val remote = api.getCurrentProgress(mediaId) ?: return null
+        val target = maxOf(remote, localProgress)
+        if (target > remote) api.addChapterProgressOnly(mediaId, target)
+        return target
+    }
+
     /** User-confirmed remote status sync; does not alter MAL chapter count or score. */
     suspend fun setReadingStatusOnly(mediaId: Long, status: Int) {
         val remote = when (status) {
