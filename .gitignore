@@ -15,3 +15,8 @@
 *.p12
 *.pfx
 j2k-signing*.env
+
+# Built APKs are unsigned/unreviewed until local validation, never commit them.
+/update-apk/
+/test-apk/
+/ci-apks/
