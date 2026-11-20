@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.data.download.model.DownloadQueue
 import eu.kanade.tachiyomi.data.image.coil.removeCoverFromMemory
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.data.track.EnhancedTrackService
 import eu.kanade.tachiyomi.data.track.TrackManager
@@ -54,7 +55,9 @@ import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.withUIContext
 import eu.kanade.tachiyomi.widget.TriStateCheckBox
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.filter
@@ -84,6 +87,52 @@ class MangaDetailsPresenter(
     val sourceManager: SourceManager by injectLazy()
 
     private val chapterSort = ChapterSort(manga, chapterFilter, preferences)
+
+    /** Unified is the normal chapter view for confirmed linked manga; original view is one tap away. */
+    private var unifiedEnabled = true
+    private var unifiedSnapshot: List<ChapterItem>? = null
+    private var unifiedRefreshJob: Job? = null
+    private var lastUnifiedLoadAt = 0L
+    val isUnifiedActive: Boolean get() = unifiedEnabled && unifiedSnapshot != null
+    val hasLinkedChapters: Boolean get() = manga.favorite && SmartSourceLinks.get(manga).isNotEmpty()
+
+    fun toggleUnifiedChapters() {
+        unifiedEnabled = !unifiedEnabled
+        if (unifiedEnabled) {
+            refreshUnifiedChapters(force = true)
+        } else {
+            presenterScope.launch {
+                getChapters()
+                view?.updateChapters(chapters)
+            }
+        }
+    }
+
+    /** Network fetches run off the UI thread and are cancellable; stale chapter rows remain usable. */
+    fun refreshUnifiedChapters(force: Boolean = false) {
+        if (!unifiedEnabled || !hasLinkedChapters || isLockedFromSearch) return
+        if (!force && unifiedSnapshot != null &&
+            System.currentTimeMillis() - lastUnifiedLoadAt < 15 * 60_000L) return
+        unifiedRefreshJob?.cancel()
+        unifiedRefreshJob = presenterScope.launch {
+            val controller = view ?: return@launch
+            val loaded = try {
+                withContext(Dispatchers.IO) { UnifiedChaptersDialog.nativeChapters(controller) }
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (e: Exception) {
+                Timber.w(e, "Unable to combine confirmed chapter sources")
+                null
+            }
+            if (loaded != null && unifiedEnabled && view != null) {
+                unifiedSnapshot = loaded
+                lastUnifiedLoadAt = System.currentTimeMillis()
+                setDownloadedChapters(loaded)
+                chapters = applyChapterFilters(loaded)
+                view?.updateChapters(chapters)
+            }
+        }
+    }
     val extension by lazy { (source as? HttpSource)?.getExtension() }
 
     var isLockedFromSearch = false
@@ -152,6 +201,7 @@ class MangaDetailsPresenter(
     }
 
     override fun onDestroy() {
+        unifiedRefreshJob?.cancel()
         super.onDestroy()
         downloadManager.removeListener(this)
     }
@@ -161,6 +211,7 @@ class MangaDetailsPresenter(
             getChapters()
             if (andTracking) fetchTracks()
             withContext(Dispatchers.Main) { view?.updateChapters(chapters) }
+            refreshUnifiedChapters()
             getHistory()
         }
     }
@@ -171,14 +222,13 @@ class MangaDetailsPresenter(
     }
 
     private suspend fun getChapters() {
-        val chapters = db.getChapters(manga).executeOnIO().map { it.toModel() }
-
-        // Find downloaded chapters
-        setDownloadedChapters(chapters)
-        allChapterScanlators = chapters.flatMap { ChapterUtil.getScanlators(it.chapter.scanlator) }.toSet()
-        // Store the last emission
-        allChapters = chapters
-        this.chapters = applyChapterFilters(chapters)
+        val sourceChapters = db.getChapters(manga).executeOnIO().map { it.toModel() }
+        allChapters = sourceChapters
+        // Keep native rows when the primary list refreshes or a download progresses.
+        val displayChapters = if (unifiedEnabled) unifiedSnapshot ?: sourceChapters else sourceChapters
+        setDownloadedChapters(displayChapters)
+        allChapterScanlators = displayChapters.flatMap { ChapterUtil.getScanlators(it.chapter.scanlator) }.toSet()
+        this.chapters = applyChapterFilters(displayChapters)
     }
 
     private fun getHistory() {
@@ -195,7 +245,8 @@ class MangaDetailsPresenter(
     private fun setDownloadedChapters(chapters: List<ChapterItem>) {
         for (chapter in chapters) {
             chapter.status =
-                if (downloadManager.isChapterDownloaded(chapter, manga)) {
+                if (chapter.id != null && chapter.id!! > 0L &&
+                    downloadManager.isChapterDownloaded(chapter, chapter.manga)) {
                     Download.State.DOWNLOADED
                 } else if (downloadManager.hasQueue()) {
                     downloadManager.queue
@@ -452,6 +503,7 @@ class MangaDetailsPresenter(
                 }
                 return@launch
             }
+            refreshUnifiedChapters(force = true)
             getHistory()
         }
     }
@@ -485,6 +537,7 @@ class MangaDetailsPresenter(
                 withContext(Dispatchers.Main) {
                     view?.updateChapters(this@MangaDetailsPresenter.chapters)
                 }
+                refreshUnifiedChapters(force = true)
                 getHistory()
             } catch (e: java.lang.Exception) {
                 withContext(Dispatchers.Main) {
