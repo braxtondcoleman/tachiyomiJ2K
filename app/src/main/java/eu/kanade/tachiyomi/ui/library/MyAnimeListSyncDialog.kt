@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.library
 import androidx.appcompat.app.AppCompatActivity
 import eu.kanade.tachiyomi.data.database.models.LibraryManga
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.ui.base.MaterialMenuSheet
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,32 @@ import uy.kohesive.injekt.api.get
 /** Explicit refresh for already-linked MyAnimeList entries, with a clear scope. */
 object MyAnimeListSyncDialog {
     fun show(controller: LibraryController) {
+        val activity = controller.activity as? AppCompatActivity ?: return
+        val tracker = Injekt.get<TrackManager>().myAnimeList
+        if (!tracker.isLogged) {
+            activity.materialAlertDialog()
+                .setTitle("MyAnimeList sync")
+                .setMessage("Connect MyAnimeList in Settings → Tracking first.")
+                .setPositiveButton(android.R.string.ok, null).show()
+            return
+        }
+        val items = listOf(
+            MaterialMenuSheet.MenuSheetItem(0, text = "Refresh linked tracking"),
+            MaterialMenuSheet.MenuSheetItem(1, text = "Import MAL reading statuses"),
+            MaterialMenuSheet.MenuSheetItem(2, text = "Export my reading statuses to MAL"),
+        )
+        MaterialMenuSheet(activity, items, title = "MyAnimeList",
+            subtitle = "Choose exactly what to sync") { _, choice ->
+            when (choice) {
+                0 -> refreshLinked(controller)
+                1 -> MyAnimeListImportDialog.show(controller)
+                2 -> MyAnimeListExportDialog.show(controller)
+            }
+            true
+        }.show()
+    }
+
+    private fun refreshLinked(controller: LibraryController) {
         val activity = controller.activity as? AppCompatActivity ?: return
         val manager: TrackManager = Injekt.get()
         if (!manager.myAnimeList.isLogged) {
@@ -63,9 +90,6 @@ object MyAnimeListSyncDialog {
                                 .setPositiveButton(android.R.string.ok, null).show()
                         }
                     }
-                }
-                .setNeutralButton("Import MAL statuses") { _, _ ->
-                    MyAnimeListImportDialog.show(controller)
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
