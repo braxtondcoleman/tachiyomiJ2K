@@ -105,4 +105,13 @@ class DiscoveryPlannerTest {
         assertEquals(1, found.size)
         assertTrue(found.first().reasons.any { it.contains("Previously dropped") })
     }
+
+    @Test fun malRelatedMangaGetsAnExplainableBonus() {
+        val profile = DiscoveryPlanner.Profile(emptyMap(), emptyMap(), emptySet())
+        val generic = manga(1, "Popular but not related")
+        val related = manga(2, "MAL recommended").copy(malRecommendationVotes = 6)
+        val ranked = DiscoveryPlanner.recommend(profile, listOf(generic, related))
+        assertEquals("MAL recommended", ranked.first().manga.title)
+        assertTrue(ranked.first().reasons.any { "MyAnimeList" in it })
+    }
 }
