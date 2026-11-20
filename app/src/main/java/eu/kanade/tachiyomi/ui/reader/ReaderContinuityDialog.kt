@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.reader
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.library.ReaderContinuityPlanner
+import eu.kanade.tachiyomi.data.library.RecoveryCoordinator
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.data.library.SourceHealthLedger
 import eu.kanade.tachiyomi.data.library.UnifiedChapterReadThrough
@@ -38,6 +39,40 @@ object ReaderContinuityDialog {
         val suggestions: List<ReaderContinuityPlanner.Suggestion>,
         val warnings: List<String>,
     )
+
+    // One automatic rescue per title+chapter per reader session. A page error
+    // must not create a back-and-forth loop between two failing extensions.
+    private val automaticAttempts = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    fun tryAutomaticSameChapter(activity: ReaderActivity) {
+        val manga = activity.viewModel.manga ?: return
+        val chapter = activity.viewModel.getCurrentChapter()?.chapter ?: return
+        if (ReaderContinuityPlanner.number(chapter) == null) return
+        val key = "${manga.title.lowercase()}|${chapter.chapter_number}"
+        synchronized(automaticAttempts) {
+            if (key in automaticAttempts) return
+            if (automaticAttempts.size >= 200) automaticAttempts.clear()
+            automaticAttempts.add(key)
+        }
+        activity.scope.launch {
+            val report = try {
+                withContext(Dispatchers.IO) {
+                    find(activity, manga, chapter, ReaderContinuityPlanner.Direction.SAME_CHAPTER)
+                }
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                Timber.w(error, "Automatic reader source check failed")
+                null
+            } ?: return@launch
+            if (activity.isFinishing || activity.isDestroyed) return@launch
+            // Stored chapter snapshots are not proof a replacement is online.
+            if (report.warnings.isNotEmpty() ||
+                !RecoveryCoordinator.mayAutoSwitchSameChapter(report.suggestions)
+            ) return@launch
+            openConfirmed(activity, report.primary, report.suggestions.single(), automatic = true)
+        }
+    }
 
     fun showChoice(activity: ReaderActivity) {
         if (activity.viewModel.getCurrentChapter() == null) {
@@ -187,37 +222,58 @@ object ReaderContinuityDialog {
         suggestion: ReaderContinuityPlanner.Suggestion,
     ) {
         val target = suggestion.option
-        val warning = if (suggestion.needsTitleReview) "\n\nWARNING: chapter titles differ; confirm identity." else ""
+        val warning = if (suggestion.needsTitleReview) "\\n\\nWARNING: chapter titles differ; confirm identity." else ""
         activity.materialAlertDialog()
             .setTitle("Open a linked chapter?")
             .setMessage(
-                "${target.chapter.name}\n${target.sourceName}$warning\n\n" +
+                "${target.chapter.name}\\n${target.sourceName}$warning\\n\\n" +
                     "Read progress and downloads remain source-specific. No manga or progress is migrated.",
             )
             .setPositiveButton("Open") { _, _ ->
-                activity.scope.launch {
-                    val result = try {
-                        Result.success(withContext(Dispatchers.IO) {
-                            val db: DatabaseHelper = Injekt.get()
-                            val sources: SourceManager = Injekt.get()
-                            UnifiedChapterReadThrough.resolve(
-                                db, sources, requireNotNull(primary.id),
-                                target.sourceId, target.mangaUrl, target.mangaTitle, target.chapter,
-                            )
-                        })
-                    } catch (cancel: CancellationException) {
-                        throw cancel
-                    } catch (error: Exception) {
-                        Result.failure(error)
-                    }
-                    result.onSuccess { activity.openLinkedChapter(it.manga, it.chapter) }
-                        .onFailure {
-                            activity.materialAlertDialog()
-                                .setMessage("The chosen chapter couldn't be opened. Existing records remain intact.")
-                                .setPositiveButton(android.R.string.ok, null).show()
-                        }
-                }
+                openConfirmed(activity, primary, suggestion, automatic = false)
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun openConfirmed(
+        activity: ReaderActivity,
+        primary: Manga,
+        suggestion: ReaderContinuityPlanner.Suggestion,
+        automatic: Boolean,
+    ) {
+        val target = suggestion.option
+        activity.scope.launch {
+            val result = try {
+                Result.success(withContext(Dispatchers.IO) {
+                    val db: DatabaseHelper = Injekt.get()
+                    val sources: SourceManager = Injekt.get()
+                    UnifiedChapterReadThrough.resolve(
+                        db, sources, requireNotNull(primary.id),
+                        target.sourceId, target.mangaUrl, target.mangaTitle, target.chapter,
+                    )
+                })
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+            result.onSuccess { openable ->
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    if (automatic) {
+                        android.widget.Toast.makeText(
+                            activity, "Resuming from alternate: ${target.sourceName}",
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    activity.openLinkedChapter(openable.manga, openable.chapter)
+                }
+            }.onFailure {
+                if (!automatic && !activity.isFinishing && !activity.isDestroyed) {
+                    activity.materialAlertDialog()
+                        .setMessage("The chosen chapter couldn't be opened. Existing records remain intact.")
+                        .setPositiveButton(android.R.string.ok, null).show()
+                }
+            }
+        }
     }
 }
