@@ -135,6 +135,21 @@ object MyAnimeListProgressDialog {
                 .setPositiveButton("Add selected progress") { _, _ ->
                     controller.viewScope.launch {
                         val count = withContext(Dispatchers.IO) {
+                            val db = controller.presenter.db
+                            val selectedIds = selected.map { visible[it].mediaId }.toSet()
+                            // Scan track ownership once, not for every MAL write.
+                            val ownersByMedia = mutableMapOf<Long, MutableList<Manga>>()
+                            db.getLibraryMangas().executeAsBlocking()
+                                .filter { it.id != null }.distinctBy { it.id }.take(MAX_LIBRARY)
+                                .forEach { owner ->
+                                    db.getTracks(owner).executeAsBlocking()
+                                        .filter { it.sync_id == TrackManager.MYANIMELIST &&
+                                            it.media_id in selectedIds }
+                                        .forEach { track ->
+                                            ownersByMedia.getOrPut(track.media_id) { mutableListOf() }
+                                                .add(owner)
+                                        }
+                                }
                             var successes = 0
                             for (index in selected.sorted()) {
                                 val change = visible[index]
@@ -144,21 +159,17 @@ object MyAnimeListProgressDialog {
                                     val synced = mal.addProgressOnly(change.mediaId, change.newRead)
                                     if (synced == null) continue
                                     successes++
-                                    val db = controller.presenter.db
-                                    db.getLibraryMangas().executeAsBlocking()
-                                        .filter { it.id != null }
-                                        .forEach { manga ->
-                                            db.getTracks(manga).executeAsBlocking()
-                                                .filter {
-                                                    it.sync_id == TrackManager.MYANIMELIST &&
-                                                        it.media_id == change.mediaId
-                                                }.forEach { track ->
-                                                    if (track.last_chapter_read < synced.toFloat()) {
-                                                        track.last_chapter_read = synced.toFloat()
-                                                        db.insertTrack(track).executeAsBlocking()
-                                                    }
+                                    ownersByMedia[change.mediaId].orEmpty().forEach { owner ->
+                                        db.getTracks(owner).executeAsBlocking()
+                                            .filter { it.sync_id == TrackManager.MYANIMELIST &&
+                                                it.media_id == change.mediaId }
+                                            .forEach { track ->
+                                                if (track.last_chapter_read < synced.toFloat()) {
+                                                    track.last_chapter_read = synced.toFloat()
+                                                    db.insertTrack(track).executeAsBlocking()
                                                 }
-                                        }
+                                            }
+                                    }
                                     delay(350L)
                                 } catch (cancel: CancellationException) {
                                     throw cancel
