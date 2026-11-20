@@ -123,6 +123,10 @@ class MyAnimeList(
     /** Read-only snapshot for reviewed library import. */
     suspend fun listOwnMangaStatuses(): List<MyAnimeListApi.ListEntry> = api.getOwnListEntries()
 
+    /** Pairwise manga recommendations from MAL, scoped to one known manga ID. */
+    suspend fun recommendationsFor(mangaId: Long): List<MyAnimeListApi.Recommendation> =
+        api.getRecommendations(mangaId)
+
     override suspend fun login(
         username: String,
         password: String,
