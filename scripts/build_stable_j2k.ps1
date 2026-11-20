@@ -52,7 +52,7 @@ try {
         Write-Host 'Creating permanent user-owned signing key. Keep this JKS and passwords backed up offline.'
         $keyArgs = @('-genkeypair','-noprompt','-keystore',$KeystorePath,
           '-storepass:env','J2K_STORE_PASSWORD','-keypass:env','J2K_KEY_PASSWORD',
-          '-alias',$KeyAlias,'-keyalg','RSA','-keysize','4096','-validity','10000',
+          '-alias',$KeyAlias,'-storetype','JKS','-keyalg','RSA','-keysize','4096','-validity','10000',
           '-dname','CN=Personal J2K Custom Release,O=User Owned,C=US')
         & $keytool @keyArgs
         if ($LASTEXITCODE -ne 0) { throw 'Key generation failed; do not delete existing installations.' }
