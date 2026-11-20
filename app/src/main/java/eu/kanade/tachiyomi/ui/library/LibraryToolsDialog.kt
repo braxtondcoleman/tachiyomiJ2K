@@ -53,36 +53,33 @@ object LibraryToolsDialog {
                         },
                     )
                 }
-                1 -> AutoFixSettingsDialog.show(activity)
-                6 -> MyAnimeListSyncDialog.show(controller)
-                2 -> DiscoveryDialog.show(
+                1 -> { sheet.dismiss(); AutoFixSettingsDialog.show(activity) }
+                6 -> { sheet.dismiss(); MyAnimeListSyncDialog.show(controller) }
+                2 -> { sheet.dismiss(); DiscoveryDialog.show(
                     activity,
                     controller.viewScope,
                     controller.presenter.db,
                     controller.presenter.sourceManager,
                     controller.preferences,
                 ) { manga ->
-                    sheet.dismiss()
                     controller.router.pushController(
                         MangaDetailsController(manga, true).withFadeTransaction(),
                     )
-                }
-                3 -> LibraryAuditDialog.show(
+                } }
+                3 -> { sheet.dismiss(); LibraryAuditDialog.show(
                     activity,
                     controller.viewScope,
                     controller.presenter.db,
                     controller.presenter.sourceManager,
                 ) { manga ->
-                    sheet.dismiss()
                     controller.router.pushController(
                         MangaDetailsController(manga, true).withFadeTransaction(),
                     )
-                }
-                4 -> ExtensionIntelligenceDialog.show(activity) {
-                    sheet.dismiss()
+                } }
+                4 -> { sheet.dismiss(); ExtensionIntelligenceDialog.show(activity) {
                     controller.router.pushController(BrowseController().withFadeTransaction())
-                }
-                5 -> activity.materialAlertDialog()
+                } }
+                5 -> { sheet.dismiss(); activity.materialAlertDialog()
                     .setTitle("Library shortcuts")
                     .setMessage(
                         "Long-press a manga cover to choose Reading, Completed, Dropped, On Hold or Plan to Read. Dropped reasons are optional and private.\n\n" +
@@ -91,10 +88,10 @@ object LibraryToolsDialog {
                         "Advanced: automatic repair settings only control safe retries and website-verification offers; they do not silently migrate sources."
                     )
                     .setPositiveButton("Done", null)
-                    .show()
+                    .show() }
                 else -> return@MaterialMenuSheet false
             }
-            // Fix issues dismissed this sheet explicitly. Other tools keep it.
+            // Every command opens one new screen; never stack modals on a sheet.
             false
         }.show()
     }
