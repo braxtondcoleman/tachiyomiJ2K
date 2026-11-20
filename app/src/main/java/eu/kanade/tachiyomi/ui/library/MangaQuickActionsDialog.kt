@@ -29,6 +29,7 @@ object MangaQuickActionsDialog {
             MaterialMenuSheet.MenuSheetItem(6, text = "Edit categories"),
             MaterialMenuSheet.MenuSheetItem(7, text = "Select multiple"),
             MaterialMenuSheet.MenuSheetItem(8, text = "Edit dropped reasons"),
+            MaterialMenuSheet.MenuSheetItem(9, text = "Edit personal tags"),
         )
         MaterialMenuSheet(
             activity,
@@ -41,14 +42,15 @@ object MangaQuickActionsDialog {
                 in statuses.indices -> {
                     val status = statuses[choice]
                     if (status == Status.DROPPED) showDropReasons(controller, manga)
-                    else save(controller, manga, Entry(status = status))
+                    else save(controller, manga, Entry(status = status, tags = previous.tags))
                 }
-                5 -> save(controller, manga, Entry())
+                5 -> save(controller, manga, Entry(tags = previous.tags))
                 6 -> listOf(manga).moveCategories(controller.presenter.db, activity) {
                     controller.presenter.getLibrary()
                 }
                 7 -> selectMultiple()
                 8 -> showDropReasons(controller, manga)
+                9 -> showPersonalTags(controller, manga)
             }
             true
         }.show()
@@ -77,20 +79,44 @@ object MangaQuickActionsDialog {
                     .setTitle("Personal drop reason")
                     .setView(note)
                     .setPositiveButton("Save") { _, _ ->
-                        save(controller, manga, Entry(Status.DROPPED, selected, note.text.toString()))
+                        save(controller, manga, Entry(Status.DROPPED, selected, note.text.toString(), previous.tags))
                     }
                     .setNegativeButton("Skip note") { _, _ ->
-                        save(controller, manga, Entry(Status.DROPPED, selected))
+                        save(controller, manga, Entry(Status.DROPPED, selected, tags = previous.tags))
                     }
                     .show()
             }
             .setPositiveButton("Save") { _, _ ->
-                save(controller, manga, Entry(Status.DROPPED, selected, previous.customReason))
+                save(controller, manga, Entry(Status.DROPPED, selected, previous.customReason, previous.tags))
             }
             .setNegativeButton("Skip reasons") { _, _ ->
-                save(controller, manga, Entry(Status.DROPPED))
+                save(controller, manga, Entry(Status.DROPPED, tags = previous.tags))
             }
             .show()
+    }
+
+    private fun showPersonalTags(controller: LibraryController, manga: Manga) {
+        val activity = controller.activity as? AppCompatActivity ?: return
+        val current = ReadingFeedback.get(manga)
+        val field = EditText(activity).apply {
+            hint = "Separate tags with commas"
+            setSingleLine(false)
+            setText(current.tags.sorted().joinToString(", "))
+        }
+        activity.materialAlertDialog()
+            .setTitle("Personal manga tags")
+            .setMessage("Optional labels for organizing your library, separate from reading status and dropped reasons.")
+            .setView(field)
+            .setPositiveButton("Save tags") { _, _ ->
+                val tags = field.text.toString().split(",")
+                    .map { it.trim().take(32) }
+                    .filter { it.isNotBlank() }.distinct().take(24).toSet()
+                save(controller, manga, current.copy(tags = tags))
+            }
+            .setNeutralButton("Clear tags") { _, _ ->
+                save(controller, manga, current.copy(tags = emptySet()))
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun save(controller: LibraryController, manga: Manga, entry: Entry) {
