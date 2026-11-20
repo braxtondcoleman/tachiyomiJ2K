@@ -104,6 +104,32 @@ class MyAnimeListApi(
             }
         }
 
+    data class Recommendation(val mediaId: Long, val title: String, val votes: Int)
+
+    /** Official MAL v2 detail field, not a personalized account-level feed. */
+    suspend fun getRecommendations(mangaId: Long, limit: Int = 20): List<Recommendation> =
+        withIOContext {
+            require(mangaId > 0L && limit in 1..50)
+            val url = "$baseApiUrl/manga".toUri().buildUpon()
+                .appendPath(mangaId.toString())
+                .appendQueryParameter("fields", "recommendations")
+                .build()
+            with(json) {
+                authClient.newCall(GET(url.toString())).awaitSuccess()
+                    .parseAs<JsonObject>()["recommendations"]?.jsonArray.orEmpty()
+                    .mapNotNull { item ->
+                        val node = item.jsonObject["node"]?.jsonObject ?: return@mapNotNull null
+                        val id = node["id"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
+                        val title = node["title"]?.jsonPrimitive?.contentOrNull
+                            ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val votes = item.jsonObject["num_recommendations"]?.jsonPrimitive?.int ?: 0
+                        Recommendation(id, title, votes)
+                    }.distinctBy { it.mediaId }
+                    .sortedByDescending { it.votes }
+                    .take(limit)
+            }
+        }
+
     suspend fun getMangaDetails(id: Int): TrackSearch =
         withIOContext {
             val url =
