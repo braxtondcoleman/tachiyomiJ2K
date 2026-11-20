@@ -34,6 +34,7 @@ object ReadingFeedback {
         val status: Status? = null,
         val reasons: Set<DropReason> = emptySet(),
         val customReason: String? = null,
+        val tags: Set<String> = emptySet(),
     )
 
     fun get(manga: Manga): Entry = fromMemo(manga.memo)
@@ -48,17 +49,26 @@ object ReadingFeedback {
         }.toSet()
         val note = (record["customReason"] as? JsonPrimitive)?.contentOrNull
             ?.trim()?.take(240)?.takeIf { it.isNotEmpty() }
-        return if (status == Status.DROPPED) Entry(status, reasons, note) else Entry(status)
+        val tags = (record["tags"] as? JsonArray).orEmpty().mapNotNull { value ->
+            (value as? JsonPrimitive)?.contentOrNull?.trim()?.take(32)
+                ?.takeIf { it.isNotEmpty() }
+        }.take(24).toSet()
+        return if (status == Status.DROPPED) Entry(status, reasons, note, tags)
+        else Entry(status, tags = tags)
     }
 
     fun withEntry(memo: JsonObject, entry: Entry): JsonObject {
         val data = memo.toMutableMap()
-        if (entry.status == null) {
+        if (entry.status == null && entry.tags.isEmpty()) {
             data.remove(KEY)
         } else {
-            val fields = mutableMapOf<String, JsonElement>(
-                "status" to JsonPrimitive(entry.status.name),
-            )
+            val fields = mutableMapOf<String, JsonElement>()
+            entry.status?.let { fields["status"] = JsonPrimitive(it.name) }
+            val tags = entry.tags.map { it.trim().take(32) }
+                .filter { it.isNotEmpty() }.distinct().sorted().take(24)
+            if (tags.isNotEmpty()) {
+                fields["tags"] = JsonArray(tags.map { JsonPrimitive(it) })
+            }
             if (entry.status == Status.DROPPED) {
                 fields["reasons"] = JsonArray(entry.reasons.sortedBy { it.name }.map { JsonPrimitive(it.name) })
                 entry.customReason?.trim()?.take(240)?.takeIf { it.isNotEmpty() }?.let {
