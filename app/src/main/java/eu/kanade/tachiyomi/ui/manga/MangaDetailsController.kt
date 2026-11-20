@@ -901,10 +901,6 @@ class MangaDetailsController :
             UnifiedChaptersDialog.openNative(this, chapterItem)
             return false
         }
-        if (presenter.isUnifiedActive && actionMode != null) {
-            view?.snack("Switch to original chapters for chapter range actions")
-            return false
-        }
         if (actionMode != null) {
             if (startingRangeChapterPos == null) {
                 adapter?.addSelection(position)
@@ -1102,8 +1098,10 @@ class MangaDetailsController :
                                 if (preferences.removeAfterMarkedAsRead()) {
                                     presenter.deleteChapters(listOf(item))
                                 }
-                                updateTrackChapterMarkedAsRead(db, preferences, chapter, manga?.id) {
-                                    presenter.fetchTracks()
+                                if (item.unifiedInfo?.chosen?.variant?.isPrimary != false) {
+                                    updateTrackChapterMarkedAsRead(db, preferences, chapter, manga?.id) {
+                                        presenter.fetchTracks()
+                                    }
                                 }
                             }
                         }
@@ -1519,7 +1517,11 @@ class MangaDetailsController :
 
     override fun startDownloadNow(position: Int) {
         val chapter = (adapter?.getItem(position) as? ChapterItem) ?: return
-        presenter.startDownloadingNow(chapter)
+        if (chapter.unifiedInfo != null) {
+            presenter.downloadChapters(listOf(chapter))
+        } else {
+            presenter.startDownloadingNow(chapter)
+        }
     }
 
     // In case the recycler is at the bottom and collapsing the header makes it unscrollable
