@@ -107,6 +107,19 @@ class MyAnimeListApi(
     data class Recommendation(val mediaId: Long, val title: String, val votes: Int)
 
     /** Official MAL v2 detail field, not a personalized account-level feed. */
+    /** Write ONLY a reviewed status, never overwrite online progress or ratings. */
+    suspend fun setReadingStatusOnly(mangaId: Long, status: String) {
+        require(mangaId > 0L)
+        require(status in setOf("reading", "completed", "on_hold", "dropped", "plan_to_read"))
+        withIOContext {
+            val request = Request.Builder()
+                .url(mangaUrl(mangaId).toString())
+                .put(FormBody.Builder().add("status", status).build())
+                .build()
+            authClient.newCall(request).awaitSuccess().use { /* status-only write */ }
+        }
+    }
+
     suspend fun getRecommendations(mangaId: Long, limit: Int = 20): List<Recommendation> =
         withIOContext {
             require(mangaId > 0L && limit in 1..50)
@@ -297,7 +310,7 @@ class MyAnimeListApi(
                 "$baseApiUrl/users/@me/mangalist"
                     .toUri()
                     .buildUpon()
-                    .appendQueryParameter("fields", "list_status{start_date,finish_date}")
+                    .appendQueryParameter("fields", "list_status{status,score,num_chapters_read,start_date,finish_date}")
                     .appendQueryParameter("limit", listPaginationAmount.toString())
             if (offset > 0) {
                 urlBuilder.appendQueryParameter("offset", offset.toString())
