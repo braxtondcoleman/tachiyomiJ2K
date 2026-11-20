@@ -1,3 +1,18 @@
+## 2026-11-19 follow-up: additive MAL progress and repair-menu stability
+
+### Changes committed
+- Normal MAL chapter-read tracking now sends **progress only**, after comparing the current online chapter count; never sends a lower count or accidentally overwrites a remote rating/status/date.
+- The delayed offline retry goes through the same monotonic MAL update path.
+- Tracker refresh preserves the greater of existing local and remote chapter progress.
+- Library → Sync MyAnimeList now offers **Add chapters I've read (never rewind)**. It previews only already-linked MAL IDs; local high-water marks consider read chapters from confirmed source links and are deduplicated by MAL ID. Each selected update rechecks MAL immediately before writing; it never removes titles, clears local chapter flags, or changes scores and statuses.
+- Unlinked titles are deliberately NOT created online by name similarity. User-confirmed MAL linking/creation is a distinct future action.
+- Fix broken manga dialog no longer reads recovery JSON or unknown source stubs on the UI thread. Library tools now dismisses its parent sheet before opening nested repair, tracking, and other dialogs. Manga tools also dismisses before recovery; failures are logged and an error dialog is offered rather than crashing from an uncaught UI exception.
+
+### Verification
+- **No Android CI build or device crash log has been captured.** The fix addresses plausible synchronous UI/overlay crash paths but is not yet proven to resolve the user's exact installed APK crash.
+- A temporary branch-specific push trigger was added to PR Android CI, but there are still zero workflow runs reported; no build, tests, signed APK, or phone upgrade was produced.
+- Changes live only on feature/unified-reading-experience / draft PR #14, not the installed app or master.
+
 # Unified Reading Experience — implementation and validation status
 
 ## Implemented in code on this development branch (not yet Android-build verified)
