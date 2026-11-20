@@ -136,7 +136,14 @@ class MyAnimeList(
 
     // A refresh must never silently re-add a manga that was removed from MAL.
     // Explicitly adding or binding the title is a separate, user-directed action.
-    override suspend fun refresh(track: Track): Track = api.findListItem(track) ?: track
+    override suspend fun refresh(track: Track): Track {
+        val preserved = track.last_chapter_read
+        val latest = api.findListItem(track) ?: return track
+        // Remote MAL can be behind an offline device. A metadata refresh must
+        // not erase the higher progress stored on this device.
+        latest.last_chapter_read = maxOf(latest.last_chapter_read, preserved)
+        return latest
+    }
 
     /** Read-only snapshot for reviewed library import. */
     suspend fun listOwnMangaStatuses(): List<MyAnimeListApi.ListEntry> = api.getOwnListEntries()
