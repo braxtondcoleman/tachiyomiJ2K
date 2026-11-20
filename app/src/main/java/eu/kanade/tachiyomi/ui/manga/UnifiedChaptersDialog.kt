@@ -239,13 +239,11 @@ object UnifiedChaptersDialog {
                             val source = sources.get(link.sourceId)
                             val storedManga = db.getManga(link.url, link.sourceId).executeAsBlocking()
                             val storedChapters = storedManga?.let { db.getChapters(it).executeAsBlocking() }.orEmpty()
-                            // Preserve locally stored chapters even when an extension dies.
-                            val chapters: List<SChapter> = if (storedChapters.isNotEmpty()) {
-                                storedChapters
-                            } else {
-                                if (source == null) {
-                                    return@withPermit Snapshot(emptyList(), "${link.title}: missing extension")
-                                }
+                            // Refresh each installed linked source, even when old chapters are
+                            // cached; otherwise new releases never enter the combined list.
+                            // A failed request keeps stored chapters for offline access but
+                            // cannot prove a chapter is currently missing online.
+                            val fetched: List<SChapter>? = if (source == null) null else
                                 withTimeoutOrNull(10_000) {
                                     val remote = storedManga ?: SManga.create().apply {
                                         url = link.url
@@ -253,7 +251,12 @@ object UnifiedChaptersDialog {
                                     }
                                     val details = if (remote.initialized) remote else source.getMangaDetails(remote)
                                     source.getChapterList(details)
-                                } ?: return@withPermit Snapshot(emptyList(), "${link.title}: timed out")
+                                }
+                            val chapters: List<SChapter> = fetched ?: storedChapters
+                            val fetchWarning = when {
+                                source == null -> "${link.title}: extension missing; using stored chapters"
+                                fetched == null -> "${link.title}: refresh failed/timed out; stored chapter availability is unverified"
+                                else -> null
                             }
                             Snapshot(chapters.map { chapter ->
                                 target(
@@ -263,7 +266,7 @@ object UnifiedChaptersDialog {
                                     source != null,
                                     SourceHealthLedger.get(context, link.sourceId)?.needsAttention == true,
                                 )
-                            }, warning = if (source == null) "${link.title}: extension missing; showing stored chapters" else null)
+                            }, warning = fetchWarning)
                         } catch (cancel: CancellationException) {
                             throw cancel
                         } catch (error: Exception) {
