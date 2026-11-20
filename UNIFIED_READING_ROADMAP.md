@@ -6,7 +6,9 @@
 - Dropped has optional multiple feedback reasons plus a private note; settings are stored in a namespaced manga memo, independent of source publication status and chapter read flags.
 - Personal reading statuses are shown as a subtle cover badge (and in list subtitles). Existing source metadata refresh preserves feedback.
 - Changes have an Undo snackbar. No manga is un-favorited or migrated; no chapters, downloads, bookmarks, tracker records or categories are rewritten by status selection.
-- A Library tools entry refreshes **already-linked** MyAnimeList entries via J2K's existing tracking update worker. It deliberately does not claim full list matching/import or synchronizing local personal feedback to MAL.
+- A Library tools entry refreshes **already-linked** MyAnimeList entries via J2K's existing tracking update worker. It also offers preview-first import of **uniquely matched, exact-title** MAL statuses; no unreviewed matching, remote writes, or chapter progress changes.
+- Existing MAL tracking refresh no longer silently adds a remotely removed title.
+- Local discovery ranking uses personal Dropped/Completed status and optional reasons. Explicit sexual-violence warnings are filtered when a user rejected them; missing source tags do not establish content safety.
 - Unit tests exercise metadata encoding, status transitions and refresh persistence.
 
 ## Pending design work and high-risk implementation
