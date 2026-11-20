@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.data.image.coil.removeCoverFromMemory
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
+import eu.kanade.tachiyomi.data.library.UnifiedChapterReadThrough
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.data.track.EnhancedTrackService
 import eu.kanade.tachiyomi.data.track.TrackManager
@@ -361,8 +362,53 @@ class MangaDetailsPresenter(
      * Downloads the given list of chapters with the manager.
      * @param chapters the list of chapters to download.
      */
+    /** Resolve ephemeral merged rows before persistence or downloads. */
+    private fun resolveNativeSelection(selection: List<ChapterItem>): List<ChapterItem> {
+        val primaryId = manga.id
+        return selection.mapNotNull { item ->
+            val route = item.unifiedInfo?.chosen
+            if (route == null || (route.chapter?.id != null && route.manga?.id != null)) {
+                return@mapNotNull item
+            }
+            if (primaryId == null) return@mapNotNull null
+            try {
+                val opened = UnifiedChapterReadThrough.resolve(
+                    db, sourceManager, primaryId,
+                    route.variant.sourceId, route.variant.mangaUrl,
+                    route.mangaTitle, route.rawChapter,
+                )
+                ChapterItem(opened.chapter, opened.manga)
+            } catch (error: Exception) {
+                Timber.w(error, "Could not persist a chosen alternate chapter")
+                null
+            }
+        }
+    }
+
     fun downloadChapters(chapters: List<ChapterItem>) {
-        downloadManager.downloadChapters(manga, chapters.filter { !it.isDownloaded })
+        if (chapters.none { it.unifiedInfo != null }) {
+            downloadManager.downloadChapters(manga, chapters.filter { !it.isDownloaded })
+            return
+        }
+        presenterScope.launch {
+            val selected = withContext(Dispatchers.IO) {
+                resolveNativeSelection(chapters.take(250))
+            }
+            selected.filter { !it.isDownloaded }
+                .groupBy { it.manga.source to it.manga.url }
+                .values.forEach { group ->
+                    downloadManager.downloadChapters(group.first().manga, group)
+                }
+            if (chapters.size > 250) {
+                view?.view?.context?.let { context ->
+                    android.widget.Toast.makeText(
+                        context,
+                        "Queued first 250 chapters; download more in another selection",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
     }
 
     /**
@@ -571,12 +617,14 @@ class MangaDetailsPresenter(
         bookmarked: Boolean,
     ) {
         presenterScope.launch(Dispatchers.IO) {
-            selectedChapters.forEach {
-                it.bookmark = bookmarked
-            }
-            db.updateChaptersProgress(selectedChapters).executeAsBlocking()
+            val resolved = resolveNativeSelection(selectedChapters)
+            resolved.forEach { it.bookmark = bookmarked }
+            db.updateChaptersProgress(resolved).executeAsBlocking()
             getChapters()
-            withContext(Dispatchers.Main) { view?.updateChapters(chapters) }
+            withContext(Dispatchers.Main) {
+                view?.updateChapters(chapters)
+                if (selectedChapters.any { it.unifiedInfo != null }) refreshUnifiedChapters(force = true)
+            }
         }
     }
 
@@ -593,21 +641,27 @@ class MangaDetailsPresenter(
         pagesLeft: Int? = null,
     ) {
         presenterScope.launch(Dispatchers.IO) {
-            selectedChapters.forEach {
+            val resolved = resolveNativeSelection(selectedChapters)
+            resolved.forEach {
                 it.read = read
                 if (!read) {
                     it.last_page_read = lastRead ?: 0
                     it.pages_left = pagesLeft ?: 0
                 }
             }
-            db.updateChaptersProgress(selectedChapters).executeAsBlocking()
+            db.updateChaptersProgress(resolved).executeAsBlocking()
             if (read && deleteNow && preferences.removeAfterMarkedAsRead()) {
-                deleteChapters(selectedChapters, false)
+                deleteChapters(resolved, false)
             }
             getChapters()
             withContext(Dispatchers.Main) { view?.updateChapters(chapters) }
-            if (read && deleteNow) {
-                val latestReadChapter = selectedChapters.maxByOrNull { it.chapter_number.toInt() }?.chapter
+            if (selectedChapters.any { it.unifiedInfo != null }) {
+                withContext(Dispatchers.Main) { refreshUnifiedChapters(force = true) }
+            }
+            if (read && deleteNow && selectedChapters.none {
+                it.unifiedInfo?.chosen?.variant?.isPrimary == false
+            }) {
+                val latestReadChapter = resolved.maxByOrNull { it.chapter_number.toInt() }?.chapter
                 updateTrackChapterMarkedAsRead(db, preferences, latestReadChapter, manga.id) {
                     fetchTracks()
                 }
