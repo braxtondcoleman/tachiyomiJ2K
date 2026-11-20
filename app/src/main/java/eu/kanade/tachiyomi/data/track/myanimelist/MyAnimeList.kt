@@ -81,7 +81,25 @@ class MyAnimeList(
         track: Track,
         setToRead: Boolean,
     ): Track {
-        updateTrackStatus(track, setToRead)
+        if (setToRead) {
+            // Automatic chapter-read updates are additive only. Do NOT send a
+            // stale local status, score, dates, or a lower chapter count.
+            val synced = addProgressOnly(
+                track.media_id,
+                track.last_chapter_read.toInt().coerceAtLeast(0),
+            )
+            if (synced != null) track.last_chapter_read =
+                maxOf(track.last_chapter_read, synced.toFloat())
+            return track
+        }
+
+        // Explicit tracker edits are allowed, but even these must never
+        // silently rewind MAL's already-higher read chapter count.
+        val remote = api.getCurrentProgress(track.media_id)
+        if (remote != null) {
+            track.last_chapter_read = maxOf(track.last_chapter_read, remote.toFloat())
+        }
+        updateTrackStatus(track, false)
         return api.updateItem(track)
     }
 
