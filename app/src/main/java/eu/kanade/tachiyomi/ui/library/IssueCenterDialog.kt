@@ -28,6 +28,7 @@ object IssueCenterDialog {
         val issues = SourceRecoveryInbox.list(activity.applicationContext)
         val entries: Array<CharSequence> = (
             listOf(
+                "Scan older manga for broken links\nCheck up to 80 entries, including ones skipped by updates",
                 "Review library health\nDuplicates, empty chapters and missing extensions",
                 "Fix sources & extensions\nUpdates, compatibility and manual reinstall help",
             ) + issues.take(80).map {
@@ -43,16 +44,17 @@ object IssueCenterDialog {
         dialog.setOnShowListener {
             dialog.listView.setOnItemClickListener { _, _, selected, _ ->
                 when (selected) {
-                    0 -> LibraryAuditDialog.show(activity, scope, db, sources) {
+                    0 -> LibraryNetworkCheckDialog.show(activity, scope, db, sources)
+                    1 -> LibraryAuditDialog.show(activity, scope, db, sources) {
                         dialog.dismiss()
                         openDetails(it)
                     }
-                    1 -> ExtensionIntelligenceDialog.show(activity) {
+                    2 -> ExtensionIntelligenceDialog.show(activity) {
                         dialog.dismiss()
                         openExtensions()
                     }
                     else -> {
-                        val item = issues.getOrNull(selected - 2) ?: return@setOnItemClickListener
+                        val item = issues.getOrNull(selected - 3) ?: return@setOnItemClickListener
                         activity.materialAlertDialog()
                             .setTitle(item.title)
                             .setMessage(
