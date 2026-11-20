@@ -34,22 +34,25 @@ object LibraryToolsDialog {
             subtitle = "Fix problems, manage automatic recovery and discover manga",
         ) { sheet, choice ->
             when (choice) {
-                0 -> IssueCenterDialog.show(
-                    activity,
-                    controller.viewScope,
-                    controller.presenter.db,
-                    controller.presenter.sourceManager,
-                    openDetails = { manga ->
-                        sheet.dismiss()
-                        controller.router.pushController(
-                            MangaDetailsController(manga, true).withFadeTransaction(),
-                        )
-                    },
-                    openExtensions = {
-                        sheet.dismiss()
-                        controller.router.pushController(BrowseController().withFadeTransaction())
-                    },
-                )
+                0 -> {
+                    // A modal must not be displayed behind a still-expanded
+                    // Material bottom sheet. Close it before opening issue review.
+                    sheet.dismiss()
+                    IssueCenterDialog.show(
+                        activity,
+                        controller.viewScope,
+                        controller.presenter.db,
+                        controller.presenter.sourceManager,
+                        openDetails = { manga ->
+                            controller.router.pushController(
+                                MangaDetailsController(manga, true).withFadeTransaction(),
+                            )
+                        },
+                        openExtensions = {
+                            controller.router.pushController(BrowseController().withFadeTransaction())
+                        },
+                    )
+                }
                 1 -> AutoFixSettingsDialog.show(activity)
                 6 -> MyAnimeListSyncDialog.show(controller)
                 2 -> DiscoveryDialog.show(
@@ -91,9 +94,8 @@ object LibraryToolsDialog {
                     .show()
                 else -> return@MaterialMenuSheet false
             }
-            // Stay in Library tools when inspecting/changing settings; only a
-            // navigation into a different controller explicitly dismisses it.
-            false
+            // Fix issues opens its own dialog and already closes this sheet.
+            choice == 0
         }.show()
     }
 }
