@@ -256,6 +256,7 @@ class MangaDetailsController :
         }
 
         presenter.onFirstLoad()
+        presenter.refreshUnifiedChapters()
         binding.swipeRefresh.isRefreshing = presenter.isLoading
         binding.swipeRefresh.setOnRefreshListener { presenter.refreshAll() }
         updateToolbarTitleAlpha()
@@ -896,6 +897,14 @@ class MangaDetailsController :
     ): Boolean {
         val chapterItem = (adapter?.getItem(position) as? ChapterItem) ?: return false
         val chapter = chapterItem.chapter
+        if (chapterItem.unifiedInfo != null && actionMode == null) {
+            UnifiedChaptersDialog.openNative(this, chapterItem)
+            return false
+        }
+        if (presenter.isUnifiedActive && actionMode != null) {
+            view?.snack("Switch to original chapters for chapter range actions")
+            return false
+        }
         if (actionMode != null) {
             if (startingRangeChapterPos == null) {
                 adapter?.addSelection(position)
@@ -939,6 +948,10 @@ class MangaDetailsController :
     override fun onItemLongClick(position: Int) {
         val adapter = adapter ?: return
         val item = (adapter.getItem(position) as? ChapterItem) ?: return
+        if (item.unifiedInfo != null) {
+            UnifiedChaptersDialog.chooseNative(this, item)
+            return
+        }
         val descending = presenter.sortDescending()
         val items =
             mutableListOf(
@@ -1232,7 +1245,7 @@ class MangaDetailsController :
             R.id.action_smart_sources -> SmartSourcesDialog.search(this)
             R.id.action_linked_sources -> SmartSourcesDialog.linked(this)
             R.id.action_source_recovery -> SourceRecoveryDialog.show(this)
-            R.id.action_unified_chapters -> UnifiedChaptersDialog.show(this)
+            R.id.action_unified_chapters -> presenter.toggleUnifiedChapters()
             R.id.action_edit -> openEditMangaDialog()
             R.id.action_open_in_web_view -> openInWebView()
             R.id.action_refresh_tracking -> presenter.refreshTracking(true)
@@ -1584,7 +1597,8 @@ class MangaDetailsController :
         }
         val item = presenter.getNextUnreadChapter()
         if (item != null) {
-            openChapter(item.chapter, readingButton)
+            if (item.unifiedInfo != null) UnifiedChaptersDialog.openNative(this, item)
+            else openChapter(item.chapter, readingButton)
         } else if (snack == null ||
             snack?.getText() != view?.context?.getString(R.string.next_chapter_not_found)
         ) {
