@@ -100,7 +100,7 @@ object MyAnimeListExportDialog {
             val visible = changes.take(60)
             val selected = mutableSetOf<Int>()
             val labels: Array<CharSequence> = visible.map {
-                it.manga.title + "\nMAL: " + it.before + " → " + remoteName(it.target)
+                (it.manga.title + "\nMAL: " + it.before + " → " + remoteName(it.target)) as CharSequence
             }.toTypedArray()
             activity.materialAlertDialog()
                 .setTitle("Export reading statuses")
