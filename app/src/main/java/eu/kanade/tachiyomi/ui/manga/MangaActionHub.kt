@@ -25,7 +25,10 @@ object MangaActionHub {
                     MangaActionPlanner.Action.RELATED -> R.drawable.ic_star_24dp
                     MangaActionPlanner.Action.FIX -> R.drawable.ic_help_outline_24dp
                 },
-                text = action.title,
+                text = if (action == MangaActionPlanner.Action.CHAPTERS) {
+                    if (controller.presenter.isUnifiedActive) "Show original-only chapters"
+                    else "Show combined chapters"
+                } else action.title,
             )
         }
         MaterialMenuSheet(
@@ -35,7 +38,10 @@ object MangaActionHub {
             subtitle = "Choose what to do with ${manga.title}",
         ) { sheet, selected ->
             when (choices.firstOrNull { it.ordinal == selected }) {
-                MangaActionPlanner.Action.CHAPTERS -> UnifiedChaptersDialog.show(controller)
+                MangaActionPlanner.Action.CHAPTERS -> {
+                    controller.presenter.toggleUnifiedChapters()
+                    sheet.dismiss()
+                }
                 MangaActionPlanner.Action.FIND_SOURCE -> {
                     sheet.dismiss()
                     SmartSourcesDialog.search(controller)
