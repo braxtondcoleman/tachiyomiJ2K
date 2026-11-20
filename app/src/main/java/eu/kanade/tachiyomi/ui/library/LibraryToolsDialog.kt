@@ -80,15 +80,14 @@ object LibraryToolsDialog {
                     controller.router.pushController(BrowseController().withFadeTransaction())
                 }
                 5 -> activity.materialAlertDialog()
-                    .setTitle("Your manga reading flow")
+                    .setTitle("Library shortcuts")
                     .setMessage(
-                        "1. Library: open a manga and choose a chapter to read.\n\n" +
-                            "2. Manga tools: use All chapter versions, Find another source, or Fix a reading problem.\n\n" +
-                            "3. Library tools → Fix issues: see all recorded source and extension problems in one place.\n\n" +
-                            "4. Library tools → Auto-fix settings: switch safe connection retries and Cloudflare verification prompts on or off. Changes save immediately.\n\n" +
-                            "The tools menu stays available when you close a sub-screen. No automatic source switching, extension installation or manga deletion.",
+                        "Long-press a manga cover to choose Reading, Completed, Dropped, On Hold or Plan to Read. Dropped reasons are optional and private.\n\n" +
+                        "Use Library tools → Sync MyAnimeList to refresh linked tracker entries or review a conservative, optional status import.\n\n" +
+                        "Fix broken manga shows recorded errors. Open a manga's tools for alternate sources and chapter versions.\n\n" +
+                        "Advanced: automatic repair settings only control safe retries and website-verification offers; they do not silently migrate sources."
                     )
-                    .setPositiveButton("Back to tools", null)
+                    .setPositiveButton("Done", null)
                     .show()
                 else -> return@MaterialMenuSheet false
             }
