@@ -1,0 +1,62 @@
+name: J2K Manual APK Build
+
+# CI-only workflow. It lives on master so GitHub enables "Run workflow".
+# It checks out the isolated development branch; it does NOT merge feature code.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j2k-manual-apk
+  cancel-in-progress: false
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout custom development branch (not master)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feature/unified-reading-experience
+          fetch-depth: 0
+      - name: Report exact commit
+        run: git log -1 --format="%H %s"
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: temurin
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Configure CI Gradle
+        shell: bash
+        run: |
+          mkdir -p ~/.gradle
+          cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
+      - name: Run JVM regression tests
+        run: ./gradlew :app:testStandardDebugUnitTest --stacktrace
+      - name: Compile standard debug APK
+        run: ./gradlew :app:assembleStandardDebug --stacktrace
+      - name: Stage test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-apk
+          folder=app/build/outputs/apk/standard/debug
+          apk="$(find "$folder" -type f -name '*universal*debug*.apk' -print -quit)"
+          if [ -z "$apk" ]; then
+            apk="$(find "$folder" -type f -name '*arm64-v8a*debug*.apk' -print -quit)"
+          fi
+          test -n "$apk" || { echo "::error::No ARM64/universal debug APK created"; exit 1; }
+          cp "$apk" test-apk/J2K-Custom-TEST-ONLY.apk
+          echo "This is DEBUG signed: not an update to an existing independently signed app." > test-apk/READ_ME_FIRST.txt
+      - name: Upload isolated test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: J2K-TEST-APK-NOT-AN-UPDATE
+          path: test-apk/
+          if-no-files-found: error
+          retention-days: 14
