@@ -94,8 +94,8 @@ object LibraryToolsDialog {
                     .show()
                 else -> return@MaterialMenuSheet false
             }
-            // Fix issues opens its own dialog and already closes this sheet.
-            choice == 0
+            // Fix issues dismissed this sheet explicitly. Other tools keep it.
+            false
         }.show()
     }
 }
