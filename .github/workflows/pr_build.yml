@@ -3,6 +3,9 @@ name: Pull request Android build
 on:
   pull_request:
     branches: [master, feature/reliable-library-updates, feature/sy-multi-source-manga, feature/milestone-a-library-safety, feature/milestone-b-unified-chapters, feature/milestone-c-source-recovery, feature/milestone-d-reader-continuity, feature/milestone-e-extension-intelligence, feature/milestone-f-eager-reader, feature/milestone-g-discovery, feature/milestone-h-library-audit, feature/milestone-i-intuitive-navigation]
+  # Test this isolated development branch without changing the main build.
+  push:
+    branches: [feature/unified-reading-experience]
   workflow_dispatch:
 
 permissions:
