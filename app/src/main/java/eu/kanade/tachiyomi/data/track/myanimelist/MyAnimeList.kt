@@ -116,7 +116,9 @@ class MyAnimeList(
         return api.search(query)
     }
 
-    override suspend fun refresh(track: Track): Track = api.findListItem(track) ?: add(track)
+    // A refresh must never silently re-add a manga that was removed from MAL.
+    // Explicitly adding or binding the title is a separate, user-directed action.
+    override suspend fun refresh(track: Track): Track = api.findListItem(track) ?: track
 
     /** Read-only snapshot for reviewed library import. */
     suspend fun listOwnMangaStatuses(): List<MyAnimeListApi.ListEntry> = api.getOwnListEntries()
