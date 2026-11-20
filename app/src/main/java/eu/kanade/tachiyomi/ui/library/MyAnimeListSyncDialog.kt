@@ -25,6 +25,7 @@ object MyAnimeListSyncDialog {
             return
         }
         val items = listOf(
+            MaterialMenuSheet.MenuSheetItem(3, text = "Add chapters I've read (never rewind)"),
             MaterialMenuSheet.MenuSheetItem(0, text = "Refresh linked tracking"),
             MaterialMenuSheet.MenuSheetItem(1, text = "Import MAL reading statuses"),
             MaterialMenuSheet.MenuSheetItem(2, text = "Export my reading statuses to MAL"),
@@ -35,6 +36,7 @@ object MyAnimeListSyncDialog {
                 0 -> refreshLinked(controller)
                 1 -> MyAnimeListImportDialog.show(controller)
                 2 -> MyAnimeListExportDialog.show(controller)
+                3 -> MyAnimeListProgressDialog.show(controller)
             }
             true
         }.show()
