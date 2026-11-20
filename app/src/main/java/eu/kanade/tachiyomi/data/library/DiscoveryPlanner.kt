@@ -19,6 +19,7 @@ object DiscoveryPlanner {
         val popularityIndex: Int = 0,
         val feedbackStatus: ReadingFeedback.Status? = null,
         val dropReasons: Set<ReadingFeedback.DropReason> = emptySet(),
+        val malRecommendationVotes: Int = 0,
     )
 
     data class Profile(
@@ -110,12 +111,18 @@ object DiscoveryPlanner {
                 if (!candidate.sourceHealthy) score -= 35
                 if (profile.avoidOpSlop && candidate.genres.any { it in explicitOverpoweredTags }) score -= 35
                 if (candidate.feedbackStatus == ReadingFeedback.Status.DROPPED) score -= 10
+                if (candidate.malRecommendationVotes > 0) {
+                    score += minOf(50, 15 + candidate.malRecommendationVotes * 2)
+                }
                 score += maxOf(0, 6 - candidate.popularityIndex / 3) // minor discovery ordering
                 val reasons = buildList {
                     if (sharedSeed > 0) add("$sharedSeed genres shared with selected manga")
                     if (sameAuthor) add("Same credited author")
                     if (sharedProfile > 0) add("Matches reading interests from your library")
                     if (familiarAuthor > 0) add("Author already represented in your library")
+                    if (candidate.malRecommendationVotes > 0) {
+                        add("Recommended by MyAnimeList readers of a tracked manga")
+                    }
                     if (!candidate.sourceHealthy) add("Source has recent failures")
                     if (profile.avoidOpSlop && candidate.genres.any { it in explicitOverpoweredTags }) {
                         add("Tagged with overpowered-protagonist content you previously dropped")
@@ -127,7 +134,11 @@ object DiscoveryPlanner {
                         add("Popular on an installed source; relevance unverified")
                     }
                 }
-                Suggestion(candidate, score, reasons, sharedSeed > 0 || sharedProfile > 0 || sameAuthor || familiarAuthor > 0)
+                Suggestion(
+                    candidate, score, reasons,
+                    sharedSeed > 0 || sharedProfile > 0 || sameAuthor || familiarAuthor > 0 ||
+                        candidate.malRecommendationVotes > 0,
+                )
             }
             .sortedWith(compareByDescending<Suggestion> { it.personalized }.thenByDescending { it.score }.thenBy { it.manga.title })
             .take(limit).toList()
