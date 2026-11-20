@@ -243,7 +243,7 @@ object UnifiedChaptersDialog {
                             // cached; otherwise new releases never enter the combined list.
                             // A failed request keeps stored chapters for offline access but
                             // cannot prove a chapter is currently missing online.
-                            val fetched: List<SChapter>? = if (source == null) null else
+                            val fetched: List<SChapter>? = if (source == null) null else try {
                                 withTimeoutOrNull(10_000) {
                                     val remote = storedManga ?: SManga.create().apply {
                                         url = link.url
@@ -252,7 +252,16 @@ object UnifiedChaptersDialog {
                                     val details = if (remote.initialized) remote else source.getMangaDetails(remote)
                                     source.getChapterList(details)
                                 }
-                            val chapters: List<SChapter> = fetched ?: storedChapters
+                            } catch (cancel: CancellationException) {
+                                throw cancel
+                            } catch (error: Exception) {
+                                Timber.w(error, "Linked chapter source refresh failed: %s", link.sourceId)
+                                null
+                            }
+                            val savedByUrl = storedChapters.associateBy { it.url }
+                            val chapters: List<SChapter> = (fetched ?: storedChapters).map { remote ->
+                                savedByUrl[remote.url] ?: remote
+                            }
                             val fetchWarning = when {
                                 source == null -> "${link.title}: extension missing; using stored chapters"
                                 fetched == null -> "${link.title}: refresh failed/timed out; stored chapter availability is unverified"
