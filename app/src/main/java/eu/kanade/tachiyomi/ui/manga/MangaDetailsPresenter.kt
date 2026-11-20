@@ -416,7 +416,10 @@ class MangaDetailsPresenter(
      * @param chapter the chapter to delete.
      */
     fun deleteChapter(chapter: ChapterItem) {
-        downloadManager.deleteChapters(listOf(chapter), manga, source, true)
+        val owner = chapter.manga
+        downloadManager.deleteChapters(
+            listOf(chapter), owner, sourceManager.getOrStub(owner.source), true,
+        )
         this.chapters.find { it.id == chapter.id }?.apply {
             if (chapter.chapter.bookmark && !preferences.removeBookmarkedChapters().get()) return@apply
             status = Download.State.QUEUE
@@ -438,8 +441,16 @@ class MangaDetailsPresenter(
         launchIO {
             if (isEverything) {
                 downloadManager.deleteManga(manga, source)
+                // Only the user's original manga is deleted by the legacy
+                // "remove all" command; linked alternate downloads remain untouched.
             } else {
-                downloadManager.deleteChapters(chapters, manga, source)
+                chapters.groupBy { it.manga.source to it.manga.url }
+                    .values.forEach { group ->
+                        val owner = group.first().manga
+                        downloadManager.deleteChapters(
+                            group, owner, sourceManager.getOrStub(owner.source),
+                        )
+                    }
             }
         }
         chapters.forEach { chapter ->
