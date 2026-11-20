@@ -127,6 +127,19 @@ class MyAnimeList(
     suspend fun recommendationsFor(mangaId: Long): List<MyAnimeListApi.Recommendation> =
         api.getRecommendations(mangaId)
 
+    /** User-confirmed remote status sync; does not alter MAL chapter count or score. */
+    suspend fun setReadingStatusOnly(mediaId: Long, status: Int) {
+        val remote = when (status) {
+            READING -> "reading"
+            COMPLETED -> "completed"
+            ON_HOLD -> "on_hold"
+            DROPPED -> "dropped"
+            PLAN_TO_READ -> "plan_to_read"
+            else -> error("Unsupported MAL reading status")
+        }
+        api.setReadingStatusOnly(mediaId, remote)
+    }
+
     override suspend fun login(
         username: String,
         password: String,
