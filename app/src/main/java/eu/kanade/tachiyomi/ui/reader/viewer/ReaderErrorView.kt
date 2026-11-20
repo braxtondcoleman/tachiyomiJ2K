@@ -50,6 +50,11 @@ class ReaderErrorView
             // The subsequent source search is opt-in, and never migrates progress.
             val reader = findReaderActivity()
             binding.actionTryAlternate.isVisible = reader?.viewModel?.getCurrentChapter() != null
+            // An actual failed page may be recoverable through a unique, confirmed
+            // linked same-chapter variant. The coordinator refuses ambiguous matches.
+            if (reader != null && binding.actionTryAlternate.isVisible) {
+                ReaderContinuityDialog.tryAutomaticSameChapter(reader)
+            }
             binding.actionTryAlternate.setOnClickListener {
                 val host = findReaderActivity() ?: return@setOnClickListener
                 ReaderContinuityDialog.show(host, ReaderContinuityPlanner.Direction.SAME_CHAPTER)
