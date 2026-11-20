@@ -81,6 +81,11 @@ class ChapterHolder(
         if (chapter.scanlator?.isNotBlank() == true) {
             statuses.add(chapter.scanlator!!)
         }
+        // Explain alternate provenance in the normal chapter list without extra menus.
+        item.unifiedInfo?.let { info ->
+            if (!info.chosen.variant.isPrimary) statuses.add("From ${info.chosen.sourceName}")
+            if (info.row.variants.size > 1) statuses.add("${info.row.variants.size} sources")
+        }
 
         if (getFrontView().translationX == 0f) {
             binding.read.setImageResource(
