@@ -66,6 +66,12 @@ object ReaderContinuityDialog {
                 null
             } ?: return@launch
             if (activity.isFinishing || activity.isDestroyed) return@launch
+            val familyKey = "parent:${report.primary.source}|${report.primary.url}|${chapter.chapter_number}"
+            synchronized(automaticAttempts) {
+                // Prevent a failing alternate from bouncing back to the original
+                // (even when the two sources use different manga titles).
+                if (!automaticAttempts.add(familyKey)) return@launch
+            }
             // Stored chapter snapshots are not proof a replacement is online.
             if (report.warnings.isNotEmpty() ||
                 !RecoveryCoordinator.mayAutoSwitchSameChapter(report.suggestions)
