@@ -62,7 +62,10 @@ object MangaActionHub {
                         )
                     }
                 }
-                MangaActionPlanner.Action.FIX -> SourceRecoveryDialog.show(controller)
+                MangaActionPlanner.Action.FIX -> {
+                    sheet.dismiss()
+                    SourceRecoveryDialog.show(controller)
+                }
                 null -> return@MaterialMenuSheet false
             }
             // Keep manga tools available while inspecting chapter versions or
