@@ -56,7 +56,17 @@ object IssueCenterDialog {
                 return@launch
             }
             if (activity.isFinishing || activity.isDestroyed) return@launch
-            open(activity, scope, db, sources, rows, openDetails, openExtensions)
+            try {
+                open(activity, scope, db, sources, rows, openDetails, openExtensions)
+            } catch (error: Exception) {
+                Timber.e(error, "Fix issues dialog failed to attach")
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    activity.materialAlertDialog()
+                        .setTitle("Could not open Fix issues")
+                        .setMessage("The repair screen encountered an error. Your manga are unchanged.")
+                        .setPositiveButton(android.R.string.ok, null).show()
+                }
+            }
         }
     }
 
