@@ -33,4 +33,17 @@ class ReadingFeedbackTest {
         assertEquals(ReadingFeedback.Status.ON_HOLD, ReadingFeedback.fromMemo(updated).status)
         assertEquals("fresh", (updated["source"] as JsonPrimitive).content)
     }
+
+    @Test fun personalTagsSurviveStatusChangesAndClearReadingStatus() {
+        val initial = ReadingFeedback.withEntry(JsonObject(emptyMap()),
+            ReadingFeedback.Entry(ReadingFeedback.Status.READING, tags = setOf("Worth revisiting", "Dark Fantasy")))
+        val restored = ReadingFeedback.fromMemo(initial)
+        assertEquals(setOf("Worth revisiting", "Dark Fantasy"), restored.tags)
+        val dropped = restored.copy(status = ReadingFeedback.Status.DROPPED)
+        val droppedMemo = ReadingFeedback.withEntry(initial, dropped)
+        assertEquals(2, ReadingFeedback.fromMemo(droppedMemo).tags.size)
+        val cleared = ReadingFeedback.withEntry(droppedMemo, dropped.copy(status = null))
+        assertEquals(null, ReadingFeedback.fromMemo(cleared).status)
+        assertEquals(2, ReadingFeedback.fromMemo(cleared).tags.size)
+    }
 }
