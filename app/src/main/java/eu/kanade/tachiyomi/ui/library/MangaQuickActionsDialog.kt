@@ -62,7 +62,7 @@ object MangaQuickActionsDialog {
         activity.materialAlertDialog()
             .setTitle("Why did you drop this? (optional)")
             .setMultiChoiceItems(
-                options.map { it.label }.toTypedArray(),
+                options.map { it.label as CharSequence }.toTypedArray(),
                 options.map { it in selected }.toBooleanArray(),
             ) { _, index, checked ->
                 if (checked) selected.add(options[index]) else selected.remove(options[index])
