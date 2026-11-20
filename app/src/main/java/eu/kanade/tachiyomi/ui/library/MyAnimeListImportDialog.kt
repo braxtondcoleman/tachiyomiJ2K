@@ -111,9 +111,13 @@ object MyAnimeListImportDialog {
                         var successes = 0
                         selected.sorted().forEach { i ->
                             val item = visible[i]
-                            val entry = if (item.match.status == ReadingFeedback.Status.DROPPED &&
+                            val sameDropped = item.match.status == ReadingFeedback.Status.DROPPED &&
                                 item.previous.status == ReadingFeedback.Status.DROPPED
-                            ) item.previous else ReadingFeedback.Entry(status = item.match.status)
+                            val entry = item.previous.copy(
+                                status = item.match.status,
+                                reasons = if (sameDropped) item.previous.reasons else emptySet(),
+                                customReason = if (sameDropped) item.previous.customReason else null,
+                            )
                             try {
                                 val id = item.manga.id
                                 if (id != null && ReadingFeedback.save(controller.presenter.db, id, entry)) {
