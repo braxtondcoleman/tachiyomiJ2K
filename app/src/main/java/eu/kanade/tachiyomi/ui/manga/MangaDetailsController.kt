@@ -685,6 +685,8 @@ class MangaDetailsController :
             presenter.headerItem.isLocked = presenter.isLockedFromSearch
             manga!!.thumbnail_url = presenter.refreshMangaFromDb().thumbnail_url
             presenter.fetchChapters(refreshTracker == null)
+            // Reader progress may have changed on a linked alternate source.
+            if (presenter.isUnifiedActive) presenter.refreshUnifiedChapters(force = true)
             if (refreshTracker != null) {
                 trackingBottomSheet?.refreshItem(refreshTracker ?: 0)
                 presenter.refreshTracking(trackIndex = refreshTracker)
