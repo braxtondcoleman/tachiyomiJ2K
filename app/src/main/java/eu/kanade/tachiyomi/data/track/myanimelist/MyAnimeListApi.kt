@@ -19,6 +19,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -107,6 +108,30 @@ class MyAnimeListApi(
     data class Recommendation(val mediaId: Long, val title: String, val votes: Int)
 
     /** Official MAL v2 detail field, not a personalized account-level feed. */
+    /** Online comparison before each additive progress write. Missing MAL entries are never created silently. */
+    suspend fun getCurrentProgress(mangaId: Long): Int? = withIOContext {
+        val url = "$baseApiUrl/manga".toUri().buildUpon()
+            .appendPath(mangaId.toString())
+            .appendQueryParameter("fields", "my_list_status")
+            .build()
+        with(json) {
+            val record = authClient.newCall(GET(url.toString()))
+                .awaitSuccess().parseAs<JsonObject>()
+            record["my_list_status"]?.jsonObject?.get("num_chapters_read")
+                ?.jsonPrimitive?.intOrNull?.coerceAtLeast(0)
+        }
+    }
+
+    /** Progress-only API call; never submits a status, score, date or deletion. */
+    suspend fun addChapterProgressOnly(mangaId: Long, chaptersRead: Int) = withIOContext {
+        require(mangaId > 0L && chaptersRead in 1..100000)
+        val request = Request.Builder()
+            .url(mangaUrl(mangaId).toString())
+            .put(FormBody.Builder().add("num_chapters_read", chaptersRead.toString()).build())
+            .build()
+        authClient.newCall(request).awaitSuccess().use { /* no local mutation */ }
+    }
+
     /** Write ONLY a reviewed status, never overwrite online progress or ratings. */
     suspend fun setReadingStatusOnly(mangaId: Long, status: String) {
         require(mangaId > 0L)
@@ -276,7 +301,12 @@ class MyAnimeListApi(
         }
 
     /** Read-only, bounded snapshot of the authenticated user's MAL manga list. */
-    data class ListEntry(val mediaId: Long, val title: String, val status: String)
+    data class ListEntry(
+        val mediaId: Long,
+        val title: String,
+        val status: String,
+        val chaptersRead: Int = 0,
+    )
 
     suspend fun getOwnListEntries(maxEntries: Int = 5000): List<ListEntry> {
         val result = mutableListOf<ListEntry>()
@@ -292,7 +322,9 @@ class MyAnimeListApi(
                     ?.takeIf { it.isNotBlank() } ?: continue
                 val status = obj["list_status"]?.jsonObject
                     ?.get("status")?.jsonPrimitive?.contentOrNull ?: continue
-                result.add(ListEntry(mediaId, title, status))
+                val chapterCount = obj["list_status"]?.jsonObject
+                    ?.get("num_chapters_read")?.jsonPrimitive?.intOrNull ?: 0
+                result.add(ListEntry(mediaId, title, status, chapterCount.coerceAtLeast(0)))
                 if (result.size >= maxEntries) return result.distinctBy { it.mediaId }
             }
             if (items.isEmpty() ||
