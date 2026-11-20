@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.manga
 
 import android.content.Context
+import android.widget.Toast
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.database.models.MangaImpl
@@ -11,6 +12,7 @@ import eu.kanade.tachiyomi.data.library.UnifiedChapterReadThrough
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import eu.kanade.tachiyomi.ui.manga.chapter.ChapterItem
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +36,7 @@ object UnifiedChaptersDialog {
     private const val PAGE_SIZE = 150
     private const val MAX_INDEXED_ROWS = 10000
 
-    private data class Target(
+    internal data class Target(
         val variant: UnifiedChapterPlanner.Variant,
         val manga: Manga?,
         val chapter: Chapter?,
@@ -44,7 +46,65 @@ object UnifiedChaptersDialog {
     )
 
     private data class Snapshot(val targets: List<Target>, val warning: String? = null)
-    private data class Report(val targets: List<Target>, val warnings: List<String>, val extraLinks: Int)
+    internal data class Report(val targets: List<Target>, val warnings: List<String>, val extraLinks: Int)
+
+    /** A source-aware logical chapter row shown by the normal native chapter adapter. */
+    internal data class NativeInfo(
+        val row: UnifiedChapterPlanner.Row,
+        val targets: List<Target>,
+        val chosen: Target,
+    )
+
+    /** One logical row per confirmed equivalent chapter, including uncached remote chapters. */
+    internal suspend fun nativeChapters(controller: MangaDetailsController): List<ChapterItem> {
+        val primary = controller.presenter.manga
+        val id = primary.id ?: return emptyList()
+        val report = load(controller, id, controller.presenter.preferences.context)
+        val result = UnifiedChapterPlanner.reconcile(report.targets.map { it.variant }, MAX_INDEXED_ROWS)
+        val targets = report.targets.associateBy { it.variant.portableId }
+
+        return result.rows.mapNotNull { row ->
+            val selected = (row.recommended?.let { targets[it.portableId] }
+                ?: row.variants.firstNotNullOfOrNull { targets[it.portableId] })
+                ?: return@mapNotNull null
+            val stored = selected.chapter
+            // The native adapter needs a stable row ID, but remote candidates are
+            // NEVER inserted into the database just to display a chapter.
+            val displayed = stored ?: selected.rawChapter.toChapter().apply {
+                val key = listOf(selected.variant.sourceId, selected.variant.mangaUrl, selected.variant.chapterUrl)
+                    .joinToString("|")
+                id = -(key.hashCode().toLong() and 0x7fffffffL) - 1L
+                manga_id = selected.manga?.id ?: primary.id
+            }
+            ChapterItem(displayed, selected.manga ?: primary).also { item ->
+                item.unifiedInfo = NativeInfo(
+                    row,
+                    row.variants.mapNotNull { targets[it.portableId] },
+                    selected,
+                )
+                item.isLocked = controller.presenter.isLockedFromSearch
+            }
+        }
+    }
+
+    /** Normal tap opens the selected, source-correct chapter without a second dialog. */
+    internal fun openNative(controller: MangaDetailsController, item: ChapterItem) {
+        val info = item.unifiedInfo ?: return
+        val source = info.chosen
+        val notice = if (source.variant.isPrimary) null else {
+            val primaryListed = info.row.variants.any { it.isPrimary }
+            if (primaryListed) "Loading from alternate: ${source.sourceName}"
+            else "Not listed on primary · loading ${source.sourceName}"
+        }
+        open(controller, source, notice)
+    }
+
+    /** Long press exposes versions without forcing a separate unified browser. */
+    internal fun chooseNative(controller: MangaDetailsController, item: ChapterItem) {
+        val info = item.unifiedInfo ?: return
+        val id = controller.presenter.manga.id ?: return
+        choose(controller, id, info.row, info.targets.associateBy { it.variant.portableId })
+    }
 
     fun show(controller: MangaDetailsController) {
         val activity = controller.activity ?: return
@@ -309,7 +369,7 @@ object UnifiedChaptersDialog {
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun open(controller: MangaDetailsController, target: Target) {
+    private fun open(controller: MangaDetailsController, target: Target, notice: String? = null) {
         val activity = controller.activity ?: return
         if (!target.variant.isAvailable) {
             activity.materialAlertDialog()
@@ -345,6 +405,7 @@ object UnifiedChaptersDialog {
                 return@launch
             }
             controller.activity?.let { current ->
+                if (notice != null) Toast.makeText(current, notice, Toast.LENGTH_SHORT).show()
                 current.startActivity(ReaderActivity.newIntent(current, openable.manga, openable.chapter))
             }
         }
