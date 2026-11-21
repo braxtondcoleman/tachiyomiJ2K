@@ -256,6 +256,7 @@ class MangaDetailsController :
         }
 
         presenter.onFirstLoad()
+        presenter.refreshUnifiedChapters()
         binding.swipeRefresh.isRefreshing = presenter.isLoading
         binding.swipeRefresh.setOnRefreshListener { presenter.refreshAll() }
         updateToolbarTitleAlpha()
@@ -684,6 +685,8 @@ class MangaDetailsController :
             presenter.headerItem.isLocked = presenter.isLockedFromSearch
             manga!!.thumbnail_url = presenter.refreshMangaFromDb().thumbnail_url
             presenter.fetchChapters(refreshTracker == null)
+            // Reader progress may have changed on a linked alternate source.
+            if (presenter.isUnifiedActive) presenter.refreshUnifiedChapters(force = true)
             if (refreshTracker != null) {
                 trackingBottomSheet?.refreshItem(refreshTracker ?: 0)
                 presenter.refreshTracking(trackIndex = refreshTracker)
@@ -896,6 +899,10 @@ class MangaDetailsController :
     ): Boolean {
         val chapterItem = (adapter?.getItem(position) as? ChapterItem) ?: return false
         val chapter = chapterItem.chapter
+        if (chapterItem.unifiedInfo != null && actionMode == null) {
+            UnifiedChaptersDialog.openNative(this, chapterItem)
+            return false
+        }
         if (actionMode != null) {
             if (startingRangeChapterPos == null) {
                 adapter?.addSelection(position)
@@ -939,6 +946,10 @@ class MangaDetailsController :
     override fun onItemLongClick(position: Int) {
         val adapter = adapter ?: return
         val item = (adapter.getItem(position) as? ChapterItem) ?: return
+        if (item.unifiedInfo != null) {
+            UnifiedChaptersDialog.chooseNative(this, item)
+            return
+        }
         val descending = presenter.sortDescending()
         val items =
             mutableListOf(
@@ -1089,8 +1100,10 @@ class MangaDetailsController :
                                 if (preferences.removeAfterMarkedAsRead()) {
                                     presenter.deleteChapters(listOf(item))
                                 }
-                                updateTrackChapterMarkedAsRead(db, preferences, chapter, manga?.id) {
-                                    presenter.fetchTracks()
+                                if (item.unifiedInfo?.chosen?.variant?.isPrimary != false) {
+                                    updateTrackChapterMarkedAsRead(db, preferences, chapter, manga?.id) {
+                                        presenter.fetchTracks()
+                                    }
                                 }
                             }
                         }
@@ -1232,7 +1245,7 @@ class MangaDetailsController :
             R.id.action_smart_sources -> SmartSourcesDialog.search(this)
             R.id.action_linked_sources -> SmartSourcesDialog.linked(this)
             R.id.action_source_recovery -> SourceRecoveryDialog.show(this)
-            R.id.action_unified_chapters -> UnifiedChaptersDialog.show(this)
+            R.id.action_unified_chapters -> presenter.toggleUnifiedChapters()
             R.id.action_edit -> openEditMangaDialog()
             R.id.action_open_in_web_view -> openInWebView()
             R.id.action_refresh_tracking -> presenter.refreshTracking(true)
@@ -1506,7 +1519,11 @@ class MangaDetailsController :
 
     override fun startDownloadNow(position: Int) {
         val chapter = (adapter?.getItem(position) as? ChapterItem) ?: return
-        presenter.startDownloadingNow(chapter)
+        if (chapter.unifiedInfo != null) {
+            presenter.downloadChapters(listOf(chapter))
+        } else {
+            presenter.startDownloadingNow(chapter)
+        }
     }
 
     // In case the recycler is at the bottom and collapsing the header makes it unscrollable
@@ -1584,7 +1601,8 @@ class MangaDetailsController :
         }
         val item = presenter.getNextUnreadChapter()
         if (item != null) {
-            openChapter(item.chapter, readingButton)
+            if (item.unifiedInfo != null) UnifiedChaptersDialog.openNative(this, item)
+            else openChapter(item.chapter, readingButton)
         } else if (snack == null ||
             snack?.getText() != view?.context?.getString(R.string.next_chapter_not_found)
         ) {

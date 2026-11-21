@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
+import eu.kanade.tachiyomi.data.library.ReadingFeedback
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import kotlinx.serialization.json.JsonObject
@@ -118,7 +119,10 @@ open class MangaImpl : Manga {
         // sever user-confirmed alternate-source associations.
         val currentMemo = memo
         super.copyFrom(other)
-        memo = SmartSourceLinks.mergeOnRestore(memo, currentMemo)
+        memo = ReadingFeedback.preserveOnRefresh(
+            SmartSourceLinks.mergeOnRestore(memo, currentMemo),
+            currentMemo,
+        )
     }
 
     override fun equals(other: Any?): Boolean {

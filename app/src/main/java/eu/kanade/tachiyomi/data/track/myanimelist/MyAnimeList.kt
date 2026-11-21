@@ -81,7 +81,25 @@ class MyAnimeList(
         track: Track,
         setToRead: Boolean,
     ): Track {
-        updateTrackStatus(track, setToRead)
+        if (setToRead) {
+            // Automatic chapter-read updates are additive only. Do NOT send a
+            // stale local status, score, dates, or a lower chapter count.
+            val synced = addProgressOnly(
+                track.media_id,
+                track.last_chapter_read.toInt().coerceAtLeast(0),
+            )
+            if (synced != null) track.last_chapter_read =
+                maxOf(track.last_chapter_read, synced.toFloat())
+            return track
+        }
+
+        // Explicit tracker edits are allowed, but even these must never
+        // silently rewind MAL's already-higher read chapter count.
+        val remote = api.getCurrentProgress(track.media_id)
+        if (remote != null) {
+            track.last_chapter_read = maxOf(track.last_chapter_read, remote.toFloat())
+        }
+        updateTrackStatus(track, false)
         return api.updateItem(track)
     }
 
@@ -116,7 +134,50 @@ class MyAnimeList(
         return api.search(query)
     }
 
-    override suspend fun refresh(track: Track): Track = api.findListItem(track) ?: add(track)
+    // A refresh must never silently re-add a manga that was removed from MAL.
+    // Explicitly adding or binding the title is a separate, user-directed action.
+    override suspend fun refresh(track: Track): Track {
+        val preserved = track.last_chapter_read
+        val latest = api.findListItem(track) ?: return track
+        // Remote MAL can be behind an offline device. A metadata refresh must
+        // not erase the higher progress stored on this device.
+        latest.last_chapter_read = maxOf(latest.last_chapter_read, preserved)
+        return latest
+    }
+
+    /** Read-only snapshot for reviewed library import. */
+    suspend fun listOwnMangaStatuses(): List<MyAnimeListApi.ListEntry> = api.getOwnListEntries()
+
+    /** Pairwise manga recommendations from MAL, scoped to one known manga ID. */
+    suspend fun recommendationsFor(mangaId: Long): List<MyAnimeListApi.Recommendation> =
+        api.getRecommendations(mangaId)
+
+    /**
+     * Explicit additive progress synchronization. Never removes a manga or
+     * replaces higher remote progress with lower local progress.
+     *
+     * Result is the confirmed target, or null when no remote list entry exists.
+     */
+    suspend fun addProgressOnly(mediaId: Long, localProgress: Int): Int? {
+        require(localProgress >= 0)
+        val remote = api.getCurrentProgress(mediaId) ?: return null
+        val target = maxOf(remote, localProgress)
+        if (target > remote) api.addChapterProgressOnly(mediaId, target)
+        return target
+    }
+
+    /** User-confirmed remote status sync; does not alter MAL chapter count or score. */
+    suspend fun setReadingStatusOnly(mediaId: Long, status: Int) {
+        val remote = when (status) {
+            READING -> "reading"
+            COMPLETED -> "completed"
+            ON_HOLD -> "on_hold"
+            DROPPED -> "dropped"
+            PLAN_TO_READ -> "plan_to_read"
+            else -> error("Unsupported MAL reading status")
+        }
+        api.setReadingStatusOnly(mediaId, remote)
+    }
 
     override suspend fun login(
         username: String,

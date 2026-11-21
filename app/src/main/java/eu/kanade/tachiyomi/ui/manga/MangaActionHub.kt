@@ -25,7 +25,10 @@ object MangaActionHub {
                     MangaActionPlanner.Action.RELATED -> R.drawable.ic_star_24dp
                     MangaActionPlanner.Action.FIX -> R.drawable.ic_help_outline_24dp
                 },
-                text = action.title,
+                text = if (action == MangaActionPlanner.Action.CHAPTERS) {
+                    if (controller.presenter.isUnifiedActive) "Show original-only chapters"
+                    else "Show combined chapters"
+                } else action.title,
             )
         }
         MaterialMenuSheet(
@@ -33,10 +36,16 @@ object MangaActionHub {
             items,
             title = "Manga tools",
             subtitle = "Choose what to do with ${manga.title}",
-        ) { _, selected ->
+        ) { sheet, selected ->
             when (choices.firstOrNull { it.ordinal == selected }) {
-                MangaActionPlanner.Action.CHAPTERS -> UnifiedChaptersDialog.show(controller)
-                MangaActionPlanner.Action.FIND_SOURCE -> SmartSourcesDialog.search(controller)
+                MangaActionPlanner.Action.CHAPTERS -> {
+                    controller.presenter.toggleUnifiedChapters()
+                    sheet.dismiss()
+                }
+                MangaActionPlanner.Action.FIND_SOURCE -> {
+                    sheet.dismiss()
+                    SmartSourcesDialog.search(controller)
+                }
                 MangaActionPlanner.Action.LINKED -> SmartSourcesDialog.linked(controller)
                 MangaActionPlanner.Action.RELATED -> {
                     DiscoveryDialog.show(
@@ -47,15 +56,21 @@ object MangaActionHub {
                         controller.presenter.preferences,
                         manga,
                     ) { candidate ->
+                        sheet.dismiss()
                         controller.router.pushController(
                             MangaDetailsController(candidate, true).withFadeTransaction(),
                         )
                     }
                 }
-                MangaActionPlanner.Action.FIX -> SourceRecoveryDialog.show(controller)
+                MangaActionPlanner.Action.FIX -> {
+                    sheet.dismiss()
+                    SourceRecoveryDialog.show(controller)
+                }
                 null -> return@MaterialMenuSheet false
             }
-            true
+            // Keep manga tools available while inspecting chapter versions or
+            // source-health dialogs; entering a different screen dismisses it.
+            false
         }.show()
     }
 }

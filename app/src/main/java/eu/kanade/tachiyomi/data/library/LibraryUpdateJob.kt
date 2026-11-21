@@ -534,6 +534,7 @@ class LibraryUpdateJob(
      * the status code, and repeatedly hitting a rate-limited host makes the problem worse.
      */
     private suspend fun <T> retryTemporaryUpdateFailures(block: suspend () -> T): T {
+        if (!RecoveryControls.retryTemporaryConnections(context)) return block()
         var retries = 0
         while (true) {
             try {

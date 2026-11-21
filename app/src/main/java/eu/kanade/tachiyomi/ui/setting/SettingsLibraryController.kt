@@ -25,6 +25,8 @@ import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.category.CategoryController
 import eu.kanade.tachiyomi.ui.library.LibraryPresenter
 import eu.kanade.tachiyomi.ui.library.LibraryAuditDialog
+import eu.kanade.tachiyomi.ui.library.AutoFixSettingsDialog
+import eu.kanade.tachiyomi.ui.library.IssueCenterDialog
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
@@ -84,6 +86,38 @@ class SettingsLibraryController : SettingsController() {
 
                     onClick {
                         TabbedLibraryDisplaySheet(this@SettingsLibraryController).show()
+                    }
+                }
+
+                preference {
+                    key = "j2k_fix_issues"
+                    isPersistent = false
+                    title = "Fix issues"
+                    summary = "Open one place for failed manga updates, missing sources, extension problems and safer recovery"
+                    onClick {
+                        val host = activity as? AppCompatActivity
+                        if (host != null) {
+                            IssueCenterDialog.show(
+                                host, viewScope, db, Injekt.get(),
+                                openDetails = { manga ->
+                                    router.pushController(MangaDetailsController(manga, true).withFadeTransaction())
+                                },
+                                openExtensions = {
+                                    router.pushController(BrowseController().withFadeTransaction())
+                                },
+                            )
+                        }
+                    }
+                }
+
+                preference {
+                    key = "j2k_auto_fix_options"
+                    isPersistent = false
+                    title = "Auto-fix settings"
+                    summary = "Enable or disable safe automatic network retries and in-reader website verification"
+                    onClick {
+                        val host = activity as? AppCompatActivity
+                        if (host != null) AutoFixSettingsDialog.show(host)
                     }
                 }
 

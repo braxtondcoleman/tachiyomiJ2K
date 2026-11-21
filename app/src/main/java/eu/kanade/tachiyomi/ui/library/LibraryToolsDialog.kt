@@ -19,19 +19,43 @@ object LibraryToolsDialog {
     fun show(controller: LibraryController) {
         val activity = controller.activity as? AppCompatActivity ?: return
         val actions = listOf(
-            MaterialMenuSheet.MenuSheetItem(0, R.drawable.ic_search_24dp, text = "Discover manga for me"),
-            MaterialMenuSheet.MenuSheetItem(1, R.drawable.ic_library_outline_24dp, text = "Check my library"),
-            MaterialMenuSheet.MenuSheetItem(2, R.drawable.ic_extension_update_24dp, text = "Fix sources & extensions"),
-            MaterialMenuSheet.MenuSheetItem(3, R.drawable.ic_help_outline_24dp, text = "How does this work?"),
+            MaterialMenuSheet.MenuSheetItem(0, R.drawable.ic_help_outline_24dp, text = "Fix broken manga"),
+            MaterialMenuSheet.MenuSheetItem(2, R.drawable.ic_search_24dp, text = "Find manga"),
+            MaterialMenuSheet.MenuSheetItem(6, R.drawable.ic_refresh_24dp, text = "Sync MyAnimeList"),
+            MaterialMenuSheet.MenuSheetItem(3, R.drawable.ic_library_outline_24dp, text = "Review library health"),
+            MaterialMenuSheet.MenuSheetItem(4, R.drawable.ic_extension_update_24dp, text = "Sources and extensions"),
+            MaterialMenuSheet.MenuSheetItem(1, R.drawable.ic_tune_24dp, text = "Automatic repair settings"),
+            MaterialMenuSheet.MenuSheetItem(5, R.drawable.ic_info_outline_24dp, text = "Help"),
         )
         MaterialMenuSheet(
             activity,
             actions,
-            title = "Explore & organize",
-            subtitle = "Discover manga, maintain your library, or get help",
-        ) { _, choice ->
+            title = "Library tools",
+            subtitle = "Fix problems, manage automatic recovery and discover manga",
+        ) { sheet, choice ->
             when (choice) {
-                0 -> DiscoveryDialog.show(
+                0 -> {
+                    // A modal must not be displayed behind a still-expanded
+                    // Material bottom sheet. Close it before opening issue review.
+                    sheet.dismiss()
+                    IssueCenterDialog.show(
+                        activity,
+                        controller.viewScope,
+                        controller.presenter.db,
+                        controller.presenter.sourceManager,
+                        openDetails = { manga ->
+                            controller.router.pushController(
+                                MangaDetailsController(manga, true).withFadeTransaction(),
+                            )
+                        },
+                        openExtensions = {
+                            controller.router.pushController(BrowseController().withFadeTransaction())
+                        },
+                    )
+                }
+                1 -> { sheet.dismiss(); AutoFixSettingsDialog.show(activity) }
+                6 -> { sheet.dismiss(); MyAnimeListSyncDialog.show(controller) }
+                2 -> { sheet.dismiss(); DiscoveryDialog.show(
                     activity,
                     controller.viewScope,
                     controller.presenter.db,
@@ -41,8 +65,8 @@ object LibraryToolsDialog {
                     controller.router.pushController(
                         MangaDetailsController(manga, true).withFadeTransaction(),
                     )
-                }
-                1 -> LibraryAuditDialog.show(
+                } }
+                3 -> { sheet.dismiss(); LibraryAuditDialog.show(
                     activity,
                     controller.viewScope,
                     controller.presenter.db,
@@ -51,24 +75,24 @@ object LibraryToolsDialog {
                     controller.router.pushController(
                         MangaDetailsController(manga, true).withFadeTransaction(),
                     )
-                }
-                2 -> ExtensionIntelligenceDialog.show(activity) {
+                } }
+                4 -> { sheet.dismiss(); ExtensionIntelligenceDialog.show(activity) {
                     controller.router.pushController(BrowseController().withFadeTransaction())
-                }
-                3 -> activity.materialAlertDialog()
-                    .setTitle("Your manga reading flow")
+                } }
+                5 -> { sheet.dismiss(); activity.materialAlertDialog()
+                    .setTitle("Library shortcuts")
                     .setMessage(
-                        "1. Library: open the manga you want to read.\n\n" +
-                            "2. Manga details: tap a chapter to read. Open Manga tools to find chapter versions, alternate websites, or similar manga.\n\n" +
-                            "3. Reader: if a page fails, use Try another source. You choose the alternative; nothing switches automatically.\n\n" +
-                            "4. Explore & organize: recommendations, library health, and extension diagnostics are here.\n\n" +
-                            "Your existing reading history and downloads are preserved when reviewing or linking sources.",
+                        "Long-press a manga cover to choose Reading, Completed, Dropped, On Hold or Plan to Read. Dropped reasons are optional and private.\n\n" +
+                        "Use Library tools → Sync MyAnimeList to refresh linked tracker entries or review a conservative, optional status import.\n\n" +
+                        "Fix broken manga shows recorded errors. Open a manga's tools for alternate sources and chapter versions.\n\n" +
+                        "Advanced: automatic repair settings only control safe retries and website-verification offers; they do not silently migrate sources."
                     )
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
+                    .setPositiveButton("Done", null)
+                    .show() }
                 else -> return@MaterialMenuSheet false
             }
-            true
+            // Every command opens one new screen; never stack modals on a sheet.
+            false
         }.show()
     }
 }
