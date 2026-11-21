@@ -73,7 +73,7 @@ object UnifiedChaptersDialog {
             val displayed = stored ?: selected.rawChapter.toChapter().apply {
                 val key = listOf(selected.variant.sourceId, selected.variant.mangaUrl, selected.variant.chapterUrl)
                     .joinToString("|")
-                id = -(key.hashCode().toLong() and 0x7fffffffL) - 1L
+                this.id = -(key.hashCode().toLong() and 0x7fffffffL) - 1L
                 manga_id = selected.manga?.id ?: primary.id
             }
             ChapterItem(displayed, selected.manga ?: primary).also { item ->
