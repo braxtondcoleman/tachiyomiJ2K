@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.manga
 
 import androidx.appcompat.app.AppCompatActivity
 import eu.kanade.tachiyomi.data.library.AlternativeTitles
+import eu.kanade.tachiyomi.data.library.MissingChapterMatcher
 import eu.kanade.tachiyomi.data.library.SmartSourceFinder
 import eu.kanade.tachiyomi.data.library.SmartSourceLinks
 import eu.kanade.tachiyomi.source.CatalogueSource
@@ -19,7 +20,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.abs
 
 /**
  * One-tap recovery from the exact "Missing N chapters" row.
@@ -131,13 +131,9 @@ object MissingChapterRepairDialog {
                                     checkedAny = true
                                     // A chapter count alone does not prove that specific missing
                                     // chapters exist. Require real numbered chapter entries.
-                                    val numbers = chapters.mapNotNull { chapter ->
-                                        val value = chapter.chapter_number
-                                        if (!value.isFinite() || value < 1f) null
-                                        else value.toInt().takeIf { number ->
-                                            number in requested && abs(value - number.toFloat()) < 0.001f
-                                        }
-                                    }.distinct().sorted()
+                                    val numbers = MissingChapterMatcher.exactNumbers(
+                                        chapters.map { it.chapter_number }, requested,
+                                    )
 
                                     if (numbers.isNotEmpty()) {
                                         found += Match(
