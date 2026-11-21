@@ -37,7 +37,7 @@
         android:minWidth="64dp"
         android:text="Fix"
         android:textAllCaps="false"
-        app:icon="@drawable/ic_search_24dp"
+        app:icon="@drawable/ic_build_24dp"
         app:iconGravity="textStart"
         app:iconSize="18dp" />
 
