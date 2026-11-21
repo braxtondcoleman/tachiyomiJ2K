@@ -1,9 +1,11 @@
 package eu.kanade.tachiyomi.ui.setting
 
+import android.content.Intent
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Category
+import eu.kanade.tachiyomi.data.library.LibraryUpdateHistory
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
@@ -21,6 +23,7 @@ import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
+import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -68,6 +71,60 @@ class SettingsLibraryController : SettingsController() {
 
                     onClick {
                         TabbedLibraryDisplaySheet(this@SettingsLibraryController).show()
+                    }
+                }
+
+                preference {
+                    key = "library_duplicate_finder"
+                    isPersistent = false
+                    titleRes = R.string.library_duplicate_finder
+                    summaryRes = R.string.library_duplicate_finder_summary
+                    onClick {
+                        // A manga in multiple categories appears several times in the DB query.
+                        // Count its ID only once so category membership isn't mistaken for a duplicate.
+                        val uniqueManga = db.getLibraryMangas().executeAsBlocking().distinctBy { it.id }
+                        val groups =
+                            uniqueManga
+                                .groupBy { manga -> manga.title.lowercase().filter { it.isLetterOrDigit() } }
+                                .filter { (normalized, entries) -> normalized.isNotBlank() && entries.size > 1 }
+                                .values
+                                .sortedBy { it.first().title }
+
+                        val report =
+                            if (groups.isEmpty()) {
+                                context.getString(R.string.library_duplicate_finder_empty)
+                            } else {
+                                buildString {
+                                    appendLine("${groups.size} possible duplicate title groups:")
+                                    appendLine()
+                                    groups.forEach { copies ->
+                                        appendLine("${copies.first().title} (${copies.size} copies)")
+                                        copies.forEach { manga ->
+                                            appendLine("  Source ${manga.source} — ${manga.read} read, ${manga.unread} unread")
+                                        }
+                                        appendLine()
+                                    }
+                                    appendLine("These are suggestions only. No manga or progress was changed.")
+                                }
+                            }
+
+                        context.materialAlertDialog()
+                            .setTitle(R.string.library_duplicate_finder)
+                            .setMessage(report.take(12_000) + if (report.length > 12_000) "\n\n(Share for full results.)" else "")
+                            .setNeutralButton(R.string.library_duplicate_finder_share) { _, _ ->
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, report)
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        intent,
+                                        context.getString(R.string.library_duplicate_finder_share),
+                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
                     }
                 }
 
@@ -203,6 +260,38 @@ class SettingsLibraryController : SettingsController() {
                     titleRes = R.string.auto_refresh_covers
                     summaryRes = R.string.auto_refresh_covers_summary
                     defaultValue = true
+                }
+                preference {
+                    key = "library_update_history"
+                    isPersistent = false
+                    titleRes = R.string.library_update_history
+                    summaryRes = R.string.library_update_history_summary
+                    onClick {
+                        val report = LibraryUpdateHistory.read(context)
+                        context.materialAlertDialog()
+                            .setTitle(R.string.library_update_history)
+                            .setMessage(
+                                LibraryUpdateHistory.preview(context).ifBlank {
+                                    context.getString(R.string.library_update_history_empty)
+                                },
+                            )
+                            .setNeutralButton(R.string.library_update_history_share) { _, _ ->
+                                if (report.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, report)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(
+                                            intent,
+                                            context.getString(R.string.library_update_history_share),
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                }
+                            }
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
                 }
             }
         }

@@ -1,0 +1,58 @@
+name: Pull request Android build
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j2k-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up JDK
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: temurin
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Copy CI gradle.properties
+        run: |
+          mkdir -p ~/.gradle
+          cp .github/runner-files/ci-gradle.properties ~/.gradle/gradle.properties
+      - name: Compile standard debug app
+        run: ./gradlew :app:assembleStandardDebug --stacktrace
+
+      - name: Prepare phone-installable test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-apk
+          APK=$(find app/build/outputs/apk/standard/debug -name '*universal*debug*.apk' -print -quit)
+          if [ -z "$APK" ]; then
+            APK=$(find app/build/outputs/apk/standard/debug -name '*arm64-v8a*debug*.apk' -print -quit)
+          fi
+          if [ -z "$APK" ]; then
+            echo "::error::No universal or ARM64 debug APK was generated."
+            find app/build/outputs/apk/standard/debug -type f || true
+            exit 1
+          fi
+          cp "$APK" test-apk/J2K-Custom-Test.apk
+      - name: Upload test APK for phone
+        uses: actions/upload-artifact@v4
+        with:
+          name: J2K-Custom-Test-APK
+          path: test-apk/J2K-Custom-Test.apk
+          if-no-files-found: error
+          retention-days: 14

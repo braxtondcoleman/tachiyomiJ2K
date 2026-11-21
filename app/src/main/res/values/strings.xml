@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">TachiyomiJ2K</string>
-    <string name="app_short_name" translatable="false">TachiJ2K</string>
+    <string name="app_name" translatable="false">J2K Custom</string>
+    <string name="app_short_name" translatable="false">J2K Custom</string>
 
     <string name="all_files_permission_required">File permissions required</string>
     <string name="external_storage_permission_notice">TachiyomiJ2K requires access to all files in Android 11 to download chapters, create automatic backups, and read local series. \n\nOn the next screen, enable \"Allow access to manage all files.\"</string>
@@ -1274,4 +1274,12 @@
     <string name="view_chapters">View chapters</string>
     <string name="warning">Warning</string>
     <string name="wifi">Wi-Fi</string>
+    <string name="library_update_history">Library update history</string>
+    <string name="library_update_history_summary">See recent checks, new chapters, skips, and errors</string>
+    <string name="library_update_history_empty">No library updates recorded yet. Run a chapter update to populate this history.</string>
+    <string name="library_update_history_share">Share full history</string>
+    <string name="library_duplicate_finder">Possible duplicates</string>
+    <string name="library_duplicate_finder_summary">Find repeated manga across sources without changing reading progress</string>
+    <string name="library_duplicate_finder_empty">No duplicate titles found in your library.</string>
+    <string name="library_duplicate_finder_share">Share duplicate list</string>
 </resources>

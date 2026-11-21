@@ -39,6 +39,7 @@ import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.data.track.EnhancedTrackService
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.extension.ExtensionUpdateJob
+import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.SManga
@@ -63,6 +64,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -73,6 +75,7 @@ import timber.log.Timber
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
+import java.io.IOException
 import java.lang.ref.WeakReference
 import java.util.Date
 import java.util.concurrent.CancellationException
@@ -104,13 +107,16 @@ class LibraryUpdateJob(
     private val categoryIds = mutableSetOf<Int>()
 
     // List containing new updates
-    private val newUpdates = mutableMapOf<LibraryManga, Array<Chapter>>()
+    private val newUpdates = ConcurrentHashMap<LibraryManga, Array<Chapter>>()
 
     // List containing failed updates
-    private val failedUpdates = mutableMapOf<Manga, String?>()
+    private val failedUpdates = ConcurrentHashMap<Manga, String>()
 
     // List containing skipped updates
-    private val skippedUpdates = mutableMapOf<Manga, String?>()
+    private val skippedUpdates = ConcurrentHashMap<Manga, String>()
+
+    // Successful checks, including those without any new chapters.
+    private val checkedUpdates = ConcurrentHashMap<Manga, Int>()
 
     // IDs of manga whose details were already refreshed alongside their chapter update
     private val detailsRefreshedMangaIds = ConcurrentHashMap.newKeySet<Long>()
@@ -155,8 +161,8 @@ class LibraryUpdateJob(
             preferences.libraryUpdateLastTimestamp().set(Date().time)
         }
 
-        val savedMangasList = inputData.getLongArray(KEY_MANGAS)?.asList()?.plus(extraManga)
-        extraManga = emptyList()
+        // WorkManager persists the entire selection, including after the app process is killed.
+        val savedMangasList = inputData.getLongArray(KEY_MANGAS)?.asList()
 
         val mangaList =
             (
@@ -382,7 +388,10 @@ class LibraryUpdateJob(
                 runExtensionUpdatesAfter = false
             }
         }
+        // Persist an in-app report even if update notifications are disabled.
+        LibraryUpdateHistory.record(context, checkedUpdates, failedUpdates, skippedUpdates)
         newUpdates.clear()
+        checkedUpdates.clear()
         detailsRefreshedMangaIds.clear()
         if (skippedUpdates.isNotEmpty() && Notifications.isNotificationChannelEnabled(context, Notifications.CHANNEL_LIBRARY_SKIPPED)) {
             val skippedFile =
@@ -421,7 +430,16 @@ class LibraryUpdateJob(
         if (mangaToUpdateMap[source] == null) return false
         var count = 0
         var hasDownloads = false
-        val httpSource = sourceManager.get(source) as? HttpSource ?: return false
+        val httpSource = sourceManager.get(source) as? HttpSource
+        if (httpSource == null) {
+            // Don't silently drop a source whose extension was removed or stopped loading.
+            mangaToUpdateMap[source].orEmpty().forEach { manga ->
+                failedUpdates[manga] =
+                    "Source unavailable or unsupported (ID: $source). Check its extension or migrate the manga."
+            }
+            mangaToUpdateMap[source] = emptyList()
+            return false
+        }
         while (count < mangaToUpdateMap[source]!!.size) {
             val manga = mangaToUpdateMap[source]!![count]
             val shouldDownload = manga.shouldDownloadNewChapters(db, preferences)
@@ -452,12 +470,14 @@ class LibraryUpdateJob(
                 // dedicated pass that runs once everything else has finished.
                 val fetchDetails = preferences.refreshCoversToo().get() && source.overridesGetMangaUpdate
                 val update =
-                    source.getMangaUpdate(
-                        if (fetchDetails) manga.copy() else manga,
-                        emptyList(),
-                        fetchDetails = fetchDetails,
-                        fetchChapters = true,
-                    )
+                    retryTemporaryUpdateFailures {
+                        source.getMangaUpdate(
+                            if (fetchDetails) manga.copy() else manga,
+                            emptyList(),
+                            fetchDetails = fetchDetails,
+                            fetchChapters = true,
+                        )
+                    }
 
                 if (fetchDetails) {
                     applyMangaDetailsUpdate(manga, update.manga)
@@ -495,15 +515,41 @@ class LibraryUpdateJob(
                         sendUpdate(manga.id)
                     }
                 }
+                checkedUpdates[manga] = newUpdates[manga]?.size ?: 0
                 return@coroutineScope hasDownloads
             } catch (e: Exception) {
                 if (e !is CancellationException) {
-                    failedUpdates[manga] = e.message
+                    failedUpdates[manga] = e.message ?: e.javaClass.simpleName
                     Timber.e("Failed updating: ${manga.title}: $e")
                 }
                 return@coroutineScope false
             }
         }
+
+    /**
+     * Retry only short-lived network failures. A 429 is intentionally *not* retried here:
+     * we cannot honor the source's Retry-After header because HttpException keeps only
+     * the status code, and repeatedly hitting a rate-limited host makes the problem worse.
+     */
+    private suspend fun <T> retryTemporaryUpdateFailures(block: suspend () -> T): T {
+        var retries = 0
+        while (true) {
+            try {
+                return block()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                val temporaryFailure =
+                    e is IOException ||
+                        (e is HttpException && (e.code == 408 || e.code in 500..599))
+                if (!temporaryFailure || retries >= MAX_TRANSIENT_RETRIES) throw e
+
+                val backoffMillis = INITIAL_RETRY_DELAY_MILLIS * (1L shl retries)
+                Timber.w(e, "Temporary chapter-update error; retrying after $backoffMillis ms")
+                delay(backoffMillis)
+                retries++
+            }
+        }
+    }
 
     private fun downloadChapters(
         manga: Manga,
@@ -688,6 +734,10 @@ class LibraryUpdateJob(
         private const val ERROR_LOG_HELP_URL = "https://mihon.app/docs/guides/troubleshooting/"
 
         private const val MANGA_PER_SOURCE_QUEUE_WARNING_THRESHOLD = 60
+        private const val MAX_TRANSIENT_RETRIES = 2
+        private const val INITIAL_RETRY_DELAY_MILLIS = 2_000L
+        // WorkManager Data has a 10 KB limit; each 256-ID batch uses only ~2 KB.
+        private const val MAX_MANGAS_PER_WORK_REQUEST = 256
 
         /**
          * Key for category to update.
@@ -703,8 +753,6 @@ class LibraryUpdateJob(
         private const val KEY_MANGAS = "mangas"
 
         private var instance: WeakReference<LibraryUpdateJob>? = null
-
-        private var extraManga = emptyList<Long>()
 
         val updateMutableFlow =
             MutableSharedFlow<Long?>(
@@ -776,41 +824,46 @@ class LibraryUpdateJob(
         ): Boolean {
             if (isRunning(context)) {
                 if (target == Target.CHAPTERS) {
-                    category?.id?.let {
-                        if (mangaToUse != null) {
-                            instance?.get()?.addMangaToQueue(it, mangaToUse)
-                        } else {
-                            instance?.get()?.addCategory(it)
-                        }
+                    val currentJob = instance?.get()
+                    if (mangaToUse != null && currentJob != null) {
+                        currentJob.addManga(currentJob.filterMangaToUpdate(mangaToUse))
+                    } else {
+                        category?.id?.let { currentJob?.addCategory(it) }
                     }
                 }
                 // Already running either as a scheduled or manual job
                 return false
             }
 
-            val builder = Data.Builder()
-            builder.putString(KEY_TARGET, target.name)
-            category?.id?.let { id ->
-                builder.putInt(KEY_CATEGORY, id)
-                if (mangaToUse != null) {
-                    builder.putLongArray(
-                        KEY_MANGAS,
-                        mangaToUse.firstOrNull()?.id?.let { longArrayOf(it) } ?: longArrayOf(),
-                    )
-                    extraManga = mangaToUse.subList(1, mangaToUse.size).mapNotNull { it.id }
-                }
-            }
-            val inputData = builder.build()
-            val request =
+            // Persist every selected ID in WorkManager input instead of putting only the
+            // first ID in Data and the remainder in a static in-memory variable.
+            // Batching keeps each Data payload below Android WorkManager's size limit.
+            val selectedBatches: List<List<Long>?> =
+                mangaToUse?.mapNotNull { it.id }?.distinct()
+                    ?.chunked(MAX_MANGAS_PER_WORK_REQUEST)
+                    ?: listOf(null)
+            if (selectedBatches.isEmpty()) return false
+
+            val requests = selectedBatches.map { batch ->
+                val builder = Data.Builder()
+                builder.putString(KEY_TARGET, target.name)
+                category?.id?.let { builder.putInt(KEY_CATEGORY, it) }
+                batch?.let { builder.putLongArray(KEY_MANGAS, it.toLongArray()) }
                 OneTimeWorkRequestBuilder<LibraryUpdateJob>()
                     .addTag(TAG)
                     .addTag(WORK_NAME_MANUAL)
-                    .setInputData(inputData)
+                    .setInputData(builder.build())
                     .build()
-            WorkManager
-                .getInstance(context)
-                .enqueueUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, request)
+            }
 
+            // Large selections execute in persisted, sequential 256-manga chunks.
+            var continuation =
+                WorkManager.getInstance(context)
+                    .beginUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, requests.first())
+            requests.drop(1).forEach { request ->
+                continuation = continuation.then(request)
+            }
+            continuation.enqueue()
             return true
         }
 
