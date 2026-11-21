@@ -95,9 +95,16 @@ workflows:
           if ./gradlew :app:testStandardReleaseUnitTest :app:assembleStandardRelease --stacktrace --no-daemon > build-logs/gradle-release.log 2>&1; then
             echo "PASS: Release tests and compilation"
           else
-            echo "Build failed: relevant compiler errors"
-            grep -nE '(^e:|^error:|Unresolved reference|Type mismatch|Compilation error|Execution failed)' build-logs/gradle-release.log | head -n 100 || true
-            tail -n 100 build-logs/gradle-release.log
+            echo "============ REAL GRADLE BUILD FAILURE ============"
+            # Gradle prints the reason BEFORE its long Java stack trace.
+            # A tail-only log hides the actual cause on many configuration failures.
+            echo "-------- Build setup and first errors --------"
+            head -n 100 build-logs/gradle-release.log
+            echo "-------- Important error locations --------"
+            grep -nE -A 12 '(^\\* What went wrong:|^> |^FAILURE:|^Caused by:|^e: |^error:|^\\* Exception is:|Unresolved reference|Type mismatch|Compilation error|Execution failed|Could not |A problem occurred|SDK location not found|NDK|CMake|License for package)' build-logs/gradle-release.log | head -n 180 || true
+            echo "-------- Final output --------"
+            tail -n 50 build-logs/gradle-release.log
+            echo "Full log also saved as artifact: build-logs/gradle-release.log"
             exit 1
           fi
           APK="$(find app/build/outputs/apk/standard/release -type f -name '*universal*release*.apk' -print -quit)"
