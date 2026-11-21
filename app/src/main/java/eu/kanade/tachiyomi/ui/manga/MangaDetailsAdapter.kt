@@ -88,7 +88,9 @@ class MangaDetailsAdapter(
                     val startChapter = floor(lower.chapter.chapter_number).toInt() + 1
                     val endChapter = floor(higher.chapter.chapter_number).toInt() - 1
                     result.add(
-                        MissingChaptersItem("${lower.chapter.id}-${higher.chapter.id}", gap, startChapter, endChapter),
+                        MissingChaptersItem("${lower.chapter.id}-${higher.chapter.id}", gap, startChapter, endChapter) {
+                            MissingChapterRepairDialog.show(controller, startChapter, endChapter)
+                        },
                     )
                 }
                 anchor = current
@@ -102,7 +104,9 @@ class MangaDetailsAdapter(
         val oldestChapter = if (descending) anchor else chapters.first()
         val missingFromStart = floor(oldestChapter.chapter.chapter_number).toInt().minus(1).coerceAtLeast(0)
         if (missingFromStart > 0) {
-            val startItem = MissingChaptersItem("start-${oldestChapter.chapter.id}", missingFromStart, 1, missingFromStart)
+            val startItem = MissingChaptersItem("start-${oldestChapter.chapter.id}", missingFromStart, 1, missingFromStart) {
+                MissingChapterRepairDialog.show(controller, 1, missingFromStart)
+            }
             if (descending) result.add(startItem) else result.add(0, startItem)
         }
         return result
