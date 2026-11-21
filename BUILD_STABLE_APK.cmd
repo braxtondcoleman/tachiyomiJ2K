@@ -12,9 +12,10 @@ echo Make an in-app J2K backup before moving any library data.
 echo Signing key is stored locally in Documents\J2K Signing.
 echo Keep a copy of that key and its password somewhere safe.
 echo.
-set /p "J2K_VER=Version code [115 first time, increase for later releases]: "
-if "%J2K_VER%"=="" set "J2K_VER=115"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\build_stable_j2k.ps1" -VersionCode %J2K_VER%
+echo Version increases automatically for every successful local release.
+echo The SAME key in Documents\J2K Signing is reused every time.
+echo.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\build_stable_j2k.ps1"
 if errorlevel 1 (
     echo.
     echo BUILD FAILED OR WAS BLOCKED. No APK is approved for installation.
