@@ -105,7 +105,9 @@ class MangaDetailsPresenter(
         } else {
             presenterScope.launch {
                 getChapters()
-                view?.updateChapters(chapters)
+                withContext(Dispatchers.Main.immediate) {
+                    view?.updateChapters(chapters)
+                }
             }
         }
     }
@@ -126,12 +128,17 @@ class MangaDetailsPresenter(
                 Timber.w(e, "Unable to combine confirmed chapter sources")
                 null
             }
-            if (loaded != null && unifiedEnabled && view != null) {
-                unifiedSnapshot = loaded
-                lastUnifiedLoadAt = System.currentTimeMillis()
+            if (loaded != null && unifiedEnabled) {
                 setDownloadedChapters(loaded)
-                chapters = applyChapterFilters(loaded)
-                view?.updateChapters(chapters)
+                val filtered = applyChapterFilters(loaded)
+                withContext(Dispatchers.Main.immediate) {
+                    if (unifiedEnabled && view != null) {
+                        unifiedSnapshot = loaded
+                        lastUnifiedLoadAt = System.currentTimeMillis()
+                        chapters = filtered
+                        view?.updateChapters(chapters)
+                    }
+                }
             }
         }
     }
