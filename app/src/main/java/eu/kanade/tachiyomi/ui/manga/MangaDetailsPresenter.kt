@@ -98,6 +98,12 @@ class MangaDetailsPresenter(
     val isUnifiedActive: Boolean get() = unifiedEnabled && unifiedSnapshot != null
     val hasLinkedChapters: Boolean get() = manga.favorite && SmartSourceLinks.get(manga).isNotEmpty()
 
+    /** Show the combined chapter list immediately after the reader confirms a repair source. */
+    fun enableUnifiedChapters() {
+        unifiedEnabled = true
+        refreshUnifiedChapters(force = true)
+    }
+
     fun toggleUnifiedChapters() {
         unifiedEnabled = !unifiedEnabled
         if (unifiedEnabled) {
