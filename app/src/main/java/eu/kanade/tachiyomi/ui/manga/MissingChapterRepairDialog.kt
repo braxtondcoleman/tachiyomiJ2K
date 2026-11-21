@@ -29,9 +29,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * install extensions, migrate progress, rewrite original chapters, or blindly link by title.
  */
 object MissingChapterRepairDialog {
-    private const val MAX_SOURCES = 24
+    private const val MAX_SOURCES = 40
     private const val MAX_NUMBERS = 30
-    private const val MAX_CANDIDATES_PER_SOURCE = 3
+    private const val MAX_CANDIDATES_PER_SOURCE = 4
+    private const val MAX_TITLE_QUERIES = 3
 
     private data class Match(
         val source: CatalogueSource,
@@ -42,8 +43,10 @@ object MissingChapterRepairDialog {
 
     private data class Report(
         val matches: List<Match>,
-        val checked: Int,
-        val failed: Int,
+        val searchedSources: Int,
+        val checkedChapterLists: Int,
+        val failedChecks: Int,
+        val skippedSources: Int,
         val limited: Boolean,
     )
 
@@ -84,102 +87,176 @@ object MissingChapterRepairDialog {
         }
     }
 
+    /**
+     * First check the known manga URL on its original and linked sources, without
+     * searching for its title. Many extensions use translated titles or don't
+     * return the manga in search even though the stored URL still works.
+     * Then search installed, enabled sources using a bounded set of names.
+     */
     private suspend fun search(
         controller: MangaDetailsController,
         requested: Set<Int>,
         limited: Boolean,
     ): Report = coroutineScope {
         val original = controller.presenter.manga
-        val preferredNames = listOf(original.originalTitle) +
-            AlternativeTitles.fromDescription(original.originalDescription).take(8)
+        val db = controller.presenter.db
+        val names = (listOf(original.originalTitle) +
+            AlternativeTitles.fromDescription(original.originalDescription).take(4))
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .take(MAX_TITLE_QUERIES)
+        val directLinks = (
+            listOf(SmartSourceLinks.Link(original.source, original.url, original.title)) +
+                SmartSourceLinks.get(original)
+            ).distinctBy { it.sourceId to it.url }.take(25)
+        val directIds = directLinks.map { it.sourceId }.toSet()
         val enabledLanguages = controller.presenter.preferences.enabledLanguages().get()
         val hidden = controller.presenter.preferences.hiddenSources().get()
-        val sources = controller.presenter.sourceManager.getCatalogueSources()
-            .asSequence()
-            .filter { it.lang in enabledLanguages && it.id.toString() !in hidden }
-            .sortedWith(compareBy<CatalogueSource> { if (it.id == original.source) 0 else 1 }.thenBy { it.name })
-            .take(MAX_SOURCES)
-            .toList()
+        val pinned = controller.presenter.preferences.pinnedCatalogues().get()
+        val available = controller.presenter.sourceManager.getCatalogueSources()
+            .filter { source ->
+                source.id in directIds ||
+                    (source.lang in enabledLanguages && source.id.toString() !in hidden)
+            }
+            .sortedWith(
+                compareBy<CatalogueSource> { if (it.id in directIds) 0 else 1 }
+                    .thenByDescending { it.id.toString() in pinned }
+                    .thenBy { it.name },
+            )
+        val skipped = (available.size - MAX_SOURCES).coerceAtLeast(0)
+        val sources = available.take(MAX_SOURCES)
 
-        val limit = Semaphore(3)
+        data class SourceResult(
+            val matches: List<Match>,
+            val checkedLists: Int,
+            val failedChecks: Int,
+        )
+
+        val limit = Semaphore(4)
         val probes = sources.map { source ->
             async(Dispatchers.IO) {
                 limit.withPermit {
-                    try {
-                        val page = withTimeoutOrNull(10_000L) {
-                            source.getSearchManga(1, original.originalTitle, FilterList())
-                        } ?: return@withPermit false to emptyList<Match>()
+                    val seenUrls = mutableSetOf<String>()
+                    val matches = mutableListOf<Match>()
+                    var checkedLists = 0
+                    var failedChecks = 0
 
+                    suspend fun check(candidate: SManga) {
+                        if (candidate.url.isBlank() || !seenUrls.add(candidate.url)) return
+                        val chapters = try {
+                            withTimeoutOrNull(10_000L) {
+                                val details = if (candidate.initialized) candidate
+                                    else source.getMangaDetails(candidate)
+                                source.getChapterList(details)
+                            }
+                        } catch (cancel: CancellationException) {
+                            throw cancel
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (chapters == null) {
+                            failedChecks++
+                            return
+                        }
+                        checkedLists++
+                        val numbers = MissingChapterMatcher.exactNumbersFromChapters(
+                            chapters.map { it.chapter_number to it.name },
+                            requested,
+                        )
+                        if (numbers.isNotEmpty()) {
+                            matches += Match(
+                                source = source,
+                                manga = candidate,
+                                missingNumbers = numbers,
+                                isOriginal = source.id == original.source && candidate.url == original.url,
+                            )
+                        }
+                    }
+
+                    // Confirmed links and current source are checked directly, even if
+                    // the manga is not returned by the extension's search endpoint.
+                    for (link in directLinks.filter { it.sourceId == source.id }) {
+                        val remote = if (link.sourceId == original.source && link.url == original.url) {
+                            original
+                        } else {
+                            db.getManga(link.url, link.sourceId).executeAsBlocking()
+                                ?: SManga.create().apply {
+                                    url = link.url
+                                    title = link.title
+                                }
+                        }
+                        check(remote)
+                    }
+
+                    // Search different title spellings without treating a fuzzy title
+                    // match as proof: the reader must approve any new source link.
+                    for (name in names) {
+                        if (matches.any { it.missingNumbers.containsAll(requested) }) break
+                        val page = try {
+                            withTimeoutOrNull(9_000L) {
+                                source.getSearchManga(1, name, FilterList())
+                            }
+                        } catch (cancel: CancellationException) {
+                            throw cancel
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (page == null) {
+                            failedChecks++
+                            continue
+                        }
                         val candidates = page.mangas
-                            .filter { candidate ->
-                                candidate.url.isNotBlank() &&
-                                    preferredNames.maxOf { SmartSourceFinder.titleScore(it, candidate.title) } >= 88
+                            .filter { entry ->
+                                entry.url.isNotBlank() && names.maxOf {
+                                    SmartSourceFinder.titleScore(it, entry.title)
+                                } >= 68
                             }
                             .distinctBy { it.url }
                             .take(MAX_CANDIDATES_PER_SOURCE)
-
-                        if (candidates.isEmpty()) return@withPermit true to emptyList<Match>()
-                        var checkedAny = false
-                        val found = mutableListOf<Match>()
-                        candidates.forEach { candidate ->
-                            try {
-                                val chapters = withTimeoutOrNull(10_000L) {
-                                    val details = source.getMangaDetails(candidate)
-                                    source.getChapterList(details)
-                                }
-                                if (chapters != null) {
-                                    checkedAny = true
-                                    // A chapter count alone does not prove that specific missing
-                                    // chapters exist. Require real numbered chapter entries.
-                                    val numbers = MissingChapterMatcher.exactNumbers(
-                                        chapters.map { it.chapter_number }, requested,
-                                    )
-
-                                    if (numbers.isNotEmpty()) {
-                                        found += Match(
-                                            source,
-                                            candidate,
-                                            numbers,
-                                            source.id == original.source && candidate.url == original.url,
-                                        )
-                                    }
-                                }
-                            } catch (cancel: CancellationException) {
-                                throw cancel
-                            } catch (_: Exception) {
-                                // Keep searching other candidates and independent sources.
-                            }
+                        for (candidate in candidates) {
+                            check(candidate)
                         }
-                        checkedAny to found
-                    } catch (cancel: CancellationException) {
-                        throw cancel
-                    } catch (_: Exception) {
-                        false to emptyList<Match>()
                     }
+                    SourceResult(matches, checkedLists, failedChecks)
                 }
             }
         }.awaitAll()
 
         Report(
-            matches = probes.flatMap { it.second }.sortedWith(
-                compareByDescending<Match> { it.missingNumbers.size }.thenBy { it.source.name },
-            ),
-            checked = probes.count { it.first },
-            failed = probes.count { !it.first },
+            matches = probes.flatMap { it.matches }
+                .distinctBy { it.source.id to it.manga.url }
+                .sortedWith(compareByDescending<Match> { it.missingNumbers.size }
+                    .thenBy { it.source.name }),
+            searchedSources = sources.size,
+            checkedChapterLists = probes.sumOf { it.checkedLists },
+            failedChecks = probes.sumOf { it.failedChecks },
+            skippedSources = skipped,
             limited = limited,
         )
     }
 
     private fun showResults(controller: MangaDetailsController, requested: Set<Int>, report: Report) {
         val activity = controller.activity as? AppCompatActivity ?: return
-        val scope = if (report.limited) "Only the first ${requested.size} chapters in this gap were checked.\n" else ""
-        val status = "Checked ${report.checked} installed sources" +
-            (if (report.failed > 0) "; ${report.failed} could not be checked" else "") + "."
+        val scope = if (report.limited) {
+            "Only the first ${requested.size} chapters in this gap were checked.\n"
+        } else {
+            ""
+        }
+        val status = "Searched ${report.searchedSources} installed sources and verified " +
+            "${report.checkedChapterLists} chapter lists." +
+            (if (report.failedChecks > 0) " ${report.failedChecks} requests failed or timed out." else "") +
+            (if (report.skippedSources > 0) " ${report.skippedSources} other sources weren't scanned." else "")
         if (report.matches.isEmpty()) {
             activity.materialAlertDialog()
-                .setTitle("No missing chapters found")
-                .setMessage(scope + "None of the checked sources exposed the requested numbered chapters. " +
-                    "An unnumbered chapter list or a source that failed to respond may still have them.\n\n" + status)
+                .setTitle("No verified matches yet")
+                .setMessage(
+                    scope + "The scan couldn't verify the missing chapters in the sources it checked. " +
+                        "That doesn't mean they don't exist: some sites are blocked, " +
+                        "use other titles, or don't expose usable chapter numbers.\n\n" + status,
+                )
+                .setNeutralButton("Broader source search") { _, _ ->
+                    SmartSourcesDialog.search(controller)
+                }
                 .setPositiveButton("Done", null).show()
             return
         }
@@ -189,8 +266,12 @@ object MissingChapterRepairDialog {
             "${label}${match.source.name} · chapters ${match.missingNumbers.joinToString(", ")}\n${match.manga.title}"
         }.map { it as CharSequence }.toTypedArray()
         activity.materialAlertDialog()
-            .setTitle("Found ${chaptersFound} chapters · ${report.checked} sources checked")
+            .setTitle("Found ${chaptersFound} chapters · ${report.checkedChapterLists} lists checked")
             .setItems(rows) { _, choice -> showConfirmation(controller, report.matches[choice]) }
+            .setNeutralButton("Scan summary") { _, _ ->
+                activity.materialAlertDialog().setTitle("Source scan summary")
+                    .setMessage(scope + status).setPositiveButton("OK", null).show()
+            }
             .setNegativeButton("Done", null).show()
     }
 
