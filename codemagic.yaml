@@ -1,0 +1,41 @@
+# Cloud build for the custom TachiyomiJ2K development branch.
+# Select branch feature/unified-reading-experience in Codemagic.
+# This build produces a TEST APK; the ephemeral debug signing key does NOT
+# guarantee an in-place upgrade of the current phone installation.
+workflows:
+  j2k-test-apk:
+    name: J2K custom - Android test APK
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      vars:
+        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
+    scripts:
+      - name: Prepare Java 21, Android SDK and Gradle
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+          mkdir -p "$HOME/.gradle"
+          cp .github/runner-files/ci-gradle.properties "$HOME/.gradle/gradle.properties"
+          chmod +x gradlew
+          echo "Building commit: $(git rev-parse HEAD)"
+      - name: Run Android JVM tests
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          ./gradlew :app:testStandardDebugUnitTest --stacktrace --no-daemon
+      - name: Compile universal/ARM64 debug APK
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          ./gradlew :app:assembleStandardDebug --stacktrace --no-daemon
+      - name: Verify APK exists
+        script: |
+          set -eu
+          find app/build/outputs/apk/standard/debug -name '*.apk' -type f -print
+          find app/build/outputs/apk/standard/debug -name '*.apk' -type f | grep -q .
+    artifacts:
+      - app/build/outputs/apk/standard/debug/*.apk
+      - app/build/outputs/mapping/**/*
