@@ -13,8 +13,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+# Android Studio users should be able to double-click the launcher without
+# manually setting environment variables for standard Windows installations.
 $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
-if (-not $sdk) { throw 'Set ANDROID_HOME to the Android SDK folder.' }
+if (-not $sdk -and $env:LOCALAPPDATA) {
+    $defaultSdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+    if (Test-Path -LiteralPath $defaultSdk -PathType Container) { $sdk = $defaultSdk }
+}
+if (-not $sdk -or -not (Test-Path -LiteralPath $sdk -PathType Container)) {
+    throw 'Android SDK not found. Install Android Studio SDK or set ANDROID_HOME.'
+}
+$env:ANDROID_HOME = $sdk
+if (-not $env:JAVA_HOME -and $env:ProgramFiles) {
+    $studioJava = Join-Path $env:ProgramFiles 'Android\Android Studio\jbr'
+    if (Test-Path -LiteralPath (Join-Path $studioJava 'bin\java.exe')) {
+        $env:JAVA_HOME = $studioJava
+        $env:PATH = (Join-Path $studioJava 'bin') + ';' + $env:PATH
+    }
+}
 if (-not (Test-Path (Join-Path $repoRoot 'gradlew.bat'))) { throw 'The complete repository and Gradle wrapper are required.' }
 $buildTools = Get-ChildItem (Join-Path $sdk 'build-tools') -Directory |
     Sort-Object { try { [version]$_.Name } catch { [version]'0.0' } } -Descending |
