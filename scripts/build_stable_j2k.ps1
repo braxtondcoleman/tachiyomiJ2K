@@ -24,9 +24,10 @@ $aapt = Join-Path $buildTools.FullName 'aapt.exe'
 $signer = Join-Path $buildTools.FullName 'apksigner.bat'
 if (-not (Test-Path $aapt) -or -not (Test-Path $signer)) { throw 'aapt or apksigner missing.' }
 # Release versions advance automatically, even when no value is supplied.
-# Keep the counter in the local update folder rather than in GitHub.
+# Keep the counter beside the permanent key, not in GitHub or a disposable clone.
+# A fresh repo checkout still remembers the installed stable app's version.
 $destination = Join-Path $repoRoot 'update-apk'
-$versionMarker = Join-Path $destination '.last-version-code'
+$versionMarker = Join-Path (Split-Path $KeystorePath -Parent) '.j2k-stable-version'
 $highest = 114
 if (Test-Path -LiteralPath $versionMarker -PathType Leaf) {
     $saved = (Get-Content -LiteralPath $versionMarker -Raw).Trim()
