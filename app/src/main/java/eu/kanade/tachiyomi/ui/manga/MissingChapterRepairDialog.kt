@@ -193,8 +193,7 @@ object MissingChapterRepairDialog {
             "${label}${match.source.name} · chapters ${match.missingNumbers.joinToString(", ")}\n${match.manga.title}"
         }.map { it as CharSequence }.toTypedArray()
         activity.materialAlertDialog()
-            .setTitle("Found ${chaptersFound} missing chapter${if (chaptersFound == 1) "" else "s"}")
-            .setMessage(scope + status + "\nChoose a source to use its matching chapters.")
+            .setTitle("Found ${chaptersFound} chapters · ${report.checked} sources checked")
             .setItems(rows) { _, choice -> showConfirmation(controller, report.matches[choice]) }
             .setNegativeButton("Done", null).show()
     }
