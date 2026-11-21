@@ -27,12 +27,14 @@ This fork's app variants are:
 ## Path A — first permanent custom APK (expected when old APK used temporary CI signing)
 
 1. In Windows Explorer, open the checked-out repository directory.
-2. Double-click **`BUILD_STABLE_APK.cmd`**. First run: accept version code 115.
-3. Create your own private keystore and passwords when prompted. The script stores `j2k-user-owned.jks` under your Documents/J2K Signing directory. **Back up that JKS and passwords offline.** Losing the key breaks future in-place updates.
+2. Double-click **`BUILD_STABLE_APK.cmd`**. The script automatically chooses v115 for the first stable release, then increments the version on each successful build. No manual version entry is needed.
+3. Create your own private keystore and passwords when prompted. Later runs reuse the exact same `j2k-user-owned.jks` under Documents/J2K Signing. **Back up that JKS and passwords offline.** Do not upload the private key or its passwords to GitHub or a chat. Losing the key breaks future in-place updates.
 4. The script runs Gradle's release unit tests and `assembleStandardRelease`, then checks APK identity and signature. If either step fails, it does **not** claim success.
 5. The approved file, if built, is `update-apk/J2K-stable-release-v115.apk`. This is a **separate app**, never an overwrite of original J2K or the old debug app.
 6. Install this stable APK, restore your J2K backup, and verify library/history/tracking/categories before deciding whether to remove an old test app. Keep your original J2K installation if desired.
-7. Future versions: double-click the same launcher, enter 116 (then 117, etc.), and use **the same existing JKS**. The new stable app can update in place, preserving its Android app data.
+7. Future versions: double-click the same launcher. It reuses **the same existing JKS** and increments the version code. The resulting APK updates this stable app in place, preserving Android app data without another restore.
+
+**Key creation happens locally on your PC on the first run.** GitHub contains only the build scripts, never the signing key. This does not retroactively update an old, CI-signed debug APK: that original debug certificate is different and must be recovered separately if you need an in-place debug update.
 
 Note: The script does not install APKs, access the phone without permission, or upload signing materials anywhere. Production APK version codes must always increase.
 
