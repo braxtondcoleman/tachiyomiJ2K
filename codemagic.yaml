@@ -101,7 +101,7 @@ workflows:
             echo "-------- Build setup and first errors --------"
             head -n 100 build-logs/gradle-release.log
             echo "-------- Important error locations --------"
-            grep -nE -A 12 '(^\\* What went wrong:|^> |^FAILURE:|^Caused by:|^e: |^error:|^\\* Exception is:|Unresolved reference|Type mismatch|Compilation error|Execution failed|Could not |A problem occurred|SDK location not found|NDK|CMake|License for package)' build-logs/gradle-release.log | head -n 180 || true
+            grep -nE -A 12 '(What went wrong|^> |^FAILURE:|^Caused by:|^e: |^error:|Exception is:|Unresolved reference|Type mismatch|Compilation error|Execution failed|Could not |A problem occurred|SDK location not found|NDK|CMake|License for package)' build-logs/gradle-release.log | head -n 180 || true
             echo "-------- Final output --------"
             tail -n 50 build-logs/gradle-release.log
             echo "Full log also saved as artifact: build-logs/gradle-release.log"
