@@ -1,0 +1,124 @@
+# Cloud build for the custom TachiyomiJ2K development branch.
+# Select branch feature/unified-reading-experience in Codemagic.
+# This build produces a TEST APK; the ephemeral debug signing key does NOT
+# guarantee an in-place upgrade of the current phone installation.
+workflows:
+  j2k-test-apk:
+    name: J2K custom - Android test APK
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      vars:
+        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
+    scripts:
+      - name: Prepare Java 21, Android SDK and Gradle
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+          mkdir -p "$HOME/.gradle"
+          cp .github/runner-files/ci-gradle.properties "$HOME/.gradle/gradle.properties"
+          chmod +x gradlew
+          echo "Building commit: $(git rev-parse HEAD)"
+      - name: Run Android JVM tests
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mkdir -p build-logs
+          if ./gradlew :app:testStandardDebugUnitTest --stacktrace --no-daemon > build-logs/gradle-test.log 2>&1; then
+            echo "PASS: JVM tests and Kotlin compilation"
+            tail -n 35 build-logs/gradle-test.log
+          else
+            echo "================ ACTUAL KOTLIN COMPILER ERRORS ================"
+            grep -nE '(^e:|^error:|: error:|Unresolved reference|Type mismatch|Argument type mismatch|Cannot access|No value passed|Compilation error|Expecting |Overload resolution ambiguity)' build-logs/gradle-test.log | head -n 130 || true
+            echo "================ END OF GRADLE OUTPUT ================"
+            tail -n 90 build-logs/gradle-test.log
+            echo "The complete log is also saved as build-logs/gradle-test.log"
+            exit 1
+          fi
+      - name: Compile universal/ARM64 debug APK
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          ./gradlew :app:assembleStandardDebug --stacktrace --no-daemon
+      - name: Verify APK exists
+        script: |
+          set -eu
+          find app/build/outputs/apk/standard/debug -name '*.apk' -type f -print
+          find app/build/outputs/apk/standard/debug -name '*.apk' -type f | grep -q .
+    artifacts:
+      - build-logs/*.log
+      - app/build/outputs/apk/standard/debug/*.apk
+      - app/build/outputs/mapping/**/*
+
+  # Phone-only signed builds. Upload your own keystore ONCE to Codemagic
+  # Code signing identities as reference "j2k_personal". NEVER commit it.
+  #
+  # The signing variables are injected securely by Codemagic. BUILD_NUMBER is
+  # monotonically increasing per workflow and produces v115, v116, ...
+  # This installs as eu.kanade.tachiyomi.customj2k, separate from old debug.
+  j2k-personal-signed:
+    name: J2K custom - Permanent signed APK
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - j2k_personal
+      vars:
+        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
+    scripts:
+      - name: Configure Java, Android SDK and Gradle
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+          mkdir -p "$HOME/.gradle" build-logs signed-apk
+          cp .github/runner-files/ci-gradle.properties "$HOME/.gradle/gradle.properties"
+          chmod +x gradlew
+      - name: Build permanent signed release and verify package and signature
+        script: |
+          set -eu
+          export PATH="$JAVA_HOME/bin:$PATH"
+          : "${CM_KEYSTORE_PATH:?Upload j2k_personal keystore to Codemagic Code signing identities first}"
+          : "${CM_KEYSTORE_PASSWORD:?Keystore password missing}"
+          : "${CM_KEY_ALIAS:?Keystore alias missing}"
+          : "${CM_KEY_PASSWORD:?Signing key password missing}"
+          : "${BUILD_NUMBER:?Codemagic workflow build number missing}"
+          export J2K_RELEASE_KEYSTORE="$CM_KEYSTORE_PATH"
+          export J2K_STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
+          export J2K_KEY_ALIAS="$CM_KEY_ALIAS"
+          export J2K_KEY_PASSWORD="$CM_KEY_PASSWORD"
+          # First build v115; each subsequent run increases automatically.
+          export J2K_RELEASE_VERSION_CODE="$((114 + BUILD_NUMBER))"
+          if ./gradlew :app:testStandardReleaseUnitTest :app:assembleStandardRelease --stacktrace --no-daemon > build-logs/gradle-release.log 2>&1; then
+            echo "PASS: Release tests and compilation"
+          else
+            echo "============ REAL GRADLE BUILD FAILURE ============"
+            # Gradle prints the reason BEFORE its long Java stack trace.
+            # A tail-only log hides the actual cause on many configuration failures.
+            echo "-------- Build setup and first errors --------"
+            head -n 100 build-logs/gradle-release.log
+            echo "-------- Important error locations --------"
+            grep -nE -A 12 '(What went wrong|^> |^FAILURE:|^Caused by:|^e: |^error:|Exception is:|Unresolved reference|Type mismatch|Compilation error|Execution failed|Could not |A problem occurred|SDK location not found|NDK|CMake|License for package)' build-logs/gradle-release.log | head -n 180 || true
+            echo "-------- Final output --------"
+            tail -n 50 build-logs/gradle-release.log
+            echo "Full log also saved as artifact: build-logs/gradle-release.log"
+            exit 1
+          fi
+          APK="$(find app/build/outputs/apk/standard/release -type f -name '*universal*release*.apk' -print -quit)"
+          test -n "$APK" || { echo "No universal release APK found"; exit 1; }
+          AAPT="$ANDROID_SDK_ROOT/build-tools/$(ls "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -n 1)/aapt"
+          SIGNER="$ANDROID_SDK_ROOT/build-tools/$(ls "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -n 1)/apksigner"
+          "$SIGNER" verify --print-certs "$APK" >/dev/null
+          IDENTITY="$("$AAPT" dump badging "$APK" | grep '^package:' | head -n 1)"
+          case "$IDENTITY" in
+            *"name='eu.kanade.tachiyomi.customj2k'"*"versionCode='$J2K_RELEASE_VERSION_CODE'"*) ;;
+            *) echo "Unexpected package or version: $IDENTITY"; exit 1 ;;
+          esac
+          cp "$APK" "signed-apk/J2K-Custom-Stable-v${J2K_RELEASE_VERSION_CODE}.apk"
+          echo "PASS: Permanent-signer update v${J2K_RELEASE_VERSION_CODE} (same Codemagic keystore reference)"
+    artifacts:
+      - signed-apk/*.apk
+      - build-logs/*.log

@@ -19,10 +19,12 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.OkHttpClient
@@ -100,6 +102,69 @@ class MyAnimeListApi(
                             }.awaitAll()
                             .filter { trackSearch -> !trackSearch.publishing_type.contains("novel") }
                     }
+            }
+        }
+
+    data class Recommendation(val mediaId: Long, val title: String, val votes: Int)
+
+    /** Official MAL v2 detail field, not a personalized account-level feed. */
+    /** Online comparison before each additive progress write. Missing MAL entries are never created silently. */
+    suspend fun getCurrentProgress(mangaId: Long): Int? = withIOContext {
+        val url = "$baseApiUrl/manga".toUri().buildUpon()
+            .appendPath(mangaId.toString())
+            .appendQueryParameter("fields", "my_list_status")
+            .build()
+        with(json) {
+            val record = authClient.newCall(GET(url.toString()))
+                .awaitSuccess().parseAs<JsonObject>()
+            record["my_list_status"]?.jsonObject?.get("num_chapters_read")
+                ?.jsonPrimitive?.intOrNull?.coerceAtLeast(0)
+        }
+    }
+
+    /** Progress-only API call; never submits a status, score, date or deletion. */
+    suspend fun addChapterProgressOnly(mangaId: Long, chaptersRead: Int) = withIOContext {
+        require(mangaId > 0L && chaptersRead in 1..100000)
+        val request = Request.Builder()
+            .url(mangaUrl(mangaId).toString())
+            .put(FormBody.Builder().add("num_chapters_read", chaptersRead.toString()).build())
+            .build()
+        authClient.newCall(request).awaitSuccess().use { /* no local mutation */ }
+    }
+
+    /** Write ONLY a reviewed status, never overwrite online progress or ratings. */
+    suspend fun setReadingStatusOnly(mangaId: Long, status: String) {
+        require(mangaId > 0L)
+        require(status in setOf("reading", "completed", "on_hold", "dropped", "plan_to_read"))
+        withIOContext {
+            val request = Request.Builder()
+                .url(mangaUrl(mangaId).toString())
+                .put(FormBody.Builder().add("status", status).build())
+                .build()
+            authClient.newCall(request).awaitSuccess().use { /* status-only write */ }
+        }
+    }
+
+    suspend fun getRecommendations(mangaId: Long, limit: Int = 20): List<Recommendation> =
+        withIOContext {
+            require(mangaId > 0L && limit in 1..50)
+            val url = "$baseApiUrl/manga".toUri().buildUpon()
+                .appendPath(mangaId.toString())
+                .appendQueryParameter("fields", "recommendations")
+                .build()
+            with(json) {
+                authClient.newCall(GET(url.toString())).awaitSuccess()
+                    .parseAs<JsonObject>()["recommendations"]?.jsonArray.orEmpty()
+                    .mapNotNull { item ->
+                        val node = item.jsonObject["node"]?.jsonObject ?: return@mapNotNull null
+                        val id = node["id"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
+                        val title = node["title"]?.jsonPrimitive?.contentOrNull
+                            ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val votes = item.jsonObject["num_recommendations"]?.jsonPrimitive?.int ?: 0
+                        Recommendation(id, title, votes)
+                    }.distinctBy { it.mediaId }
+                    .sortedByDescending { it.votes }
+                    .take(limit)
             }
         }
 
@@ -235,13 +300,49 @@ class MyAnimeListApi(
             }
         }
 
+    /** Read-only, bounded snapshot of the authenticated user's MAL manga list. */
+    data class ListEntry(
+        val mediaId: Long,
+        val title: String,
+        val status: String,
+        val chaptersRead: Int = 0,
+    )
+
+    suspend fun getOwnListEntries(maxEntries: Int = 5000): List<ListEntry> {
+        val result = mutableListOf<ListEntry>()
+        var offset = 0
+        while (offset < maxEntries) {
+            val page = getListPage(offset)
+            val items = page["data"]?.jsonArray.orEmpty()
+            for (row in items) {
+                val obj = row.jsonObject
+                val node = obj["node"]?.jsonObject ?: continue
+                val mediaId = node["id"]?.jsonPrimitive?.longOrNull ?: continue
+                val title = node["title"]?.jsonPrimitive?.contentOrNull
+                    ?.takeIf { it.isNotBlank() } ?: continue
+                val status = obj["list_status"]?.jsonObject
+                    ?.get("status")?.jsonPrimitive?.contentOrNull ?: continue
+                val chapterCount = obj["list_status"]?.jsonObject
+                    ?.get("num_chapters_read")?.jsonPrimitive?.intOrNull ?: 0
+                result.add(ListEntry(mediaId, title, status, chapterCount.coerceAtLeast(0)))
+                if (result.size >= maxEntries) return result.distinctBy { it.mediaId }
+            }
+            if (items.isEmpty() ||
+                page["paging"]?.jsonObject?.get("next")?.jsonPrimitive?.contentOrNull.isNullOrBlank()) {
+                break
+            }
+            offset += listPaginationAmount
+        }
+        return result.distinctBy { it.mediaId }
+    }
+
     private suspend fun getListPage(offset: Int): JsonObject =
         withIOContext {
             val urlBuilder =
                 "$baseApiUrl/users/@me/mangalist"
                     .toUri()
                     .buildUpon()
-                    .appendQueryParameter("fields", "list_status{start_date,finish_date}")
+                    .appendQueryParameter("fields", "list_status{status,score,num_chapters_read,start_date,finish_date}")
                     .appendQueryParameter("limit", listPaginationAmount.toString())
             if (offset > 0) {
                 urlBuilder.appendQueryParameter("offset", offset.toString())

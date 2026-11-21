@@ -1754,6 +1754,15 @@ open class LibraryController(
     override fun onItemLongClick(position: Int) {
         val item = adapter.getItem(position)
         if (item !is LibraryItem) return
+        // First long press is a quick-action menu; preserve native multi-select.
+        if (actionMode == null && adapter.mode != SelectableAdapter.Mode.MULTI) {
+            MangaQuickActionsDialog.show(this, item.manga) {
+                createActionModeIfNeeded()
+                setSelection(position)
+                lastClickPosition = position
+            }
+            return
+        }
         snack?.dismiss()
         if (libraryLayout == LibraryItem.LAYOUT_COVER_ONLY_GRID && actionMode == null) {
             snack =
@@ -2370,7 +2379,14 @@ open class LibraryController(
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.action_library_tools -> LibraryToolsDialog.show(this)
+            R.id.action_library_tools -> {
+                try {
+                    LibraryToolsDialog.show(this)
+                } catch (error: Exception) {
+                    timber.log.Timber.e(error, "Could not open Library tools")
+                    view?.snack("Could not open Library tools. Your manga are unchanged.", Snackbar.LENGTH_LONG)
+                }
+            }
             R.id.action_search -> expandActionViewFromInteraction = true
             R.id.action_filter -> {
                 hasExpanded = true

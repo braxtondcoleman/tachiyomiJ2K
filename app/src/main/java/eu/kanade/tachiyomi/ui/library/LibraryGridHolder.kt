@@ -17,6 +17,7 @@ import coil.size.Precision
 import coil.size.Scale
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Manga
+import eu.kanade.tachiyomi.data.library.ReadingFeedback
 import eu.kanade.tachiyomi.data.image.coil.loadManga
 import eu.kanade.tachiyomi.databinding.MangaGridItemBinding
 import eu.kanade.tachiyomi.util.lang.highlightText
@@ -183,6 +184,10 @@ class LibraryGridHolder(
             binding.title.post(updateSubtitle)
         }
 
+        val personalStatus = ReadingFeedback.get(item.manga).status?.label
+        binding.personalStatusBadge.text = personalStatus
+        binding.personalStatusBadge.isVisible = personalStatus != null
+        binding.personalStatusBadge.contentDescription = personalStatus?.let { "Reading status: " + it }
         setUnreadBadge(binding.unreadDownloadBadge.badgeView, item)
         setReadingButton(item)
 

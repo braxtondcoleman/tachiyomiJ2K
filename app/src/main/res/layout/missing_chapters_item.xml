@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -26,6 +27,20 @@
         android:textAppearance="?attr/textAppearanceLabelMedium"
         android:textColor="?android:textColorSecondary"
         tools:text="Missing 5 chapters" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/action_fix_missing_chapters"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:contentDescription="Find missing chapters from installed sources"
+        android:minWidth="64dp"
+        android:text="Fix"
+        android:textAllCaps="false"
+        app:icon="@drawable/ic_build_24dp"
+        app:iconGravity="textStart"
+        app:iconSize="18dp" />
 
     <View
         android:layout_width="0dp"

@@ -72,7 +72,9 @@ object SourceRecoveryInbox {
             }
         }
         failed.forEach { (manga, error) ->
-            val category = SourceRecoveryPlanner.classify(error)
+            val category = RecoveryCoordinator.plan(
+                RecoveryCoordinator.Origin.LIBRARY, error,
+            ).failure
             entryFor(manga).apply {
                 put("title", manga.title.replace('\n', ' ').take(150))
                 put("attempts", optInt("attempts") + 1)

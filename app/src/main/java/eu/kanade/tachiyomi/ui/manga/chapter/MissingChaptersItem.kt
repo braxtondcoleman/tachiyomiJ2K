@@ -14,6 +14,7 @@ class MissingChaptersItem(
     val count: Int,
     val startChapter: Int,
     val endChapter: Int,
+    private val onFix: () -> Unit = {},
 ) : AbstractFlexibleItem<MissingChaptersItem.Holder>() {
     override fun getLayoutRes(): Int = R.layout.missing_chapters_item
 
@@ -28,7 +29,7 @@ class MissingChaptersItem(
         position: Int,
         payloads: MutableList<Any>,
     ) {
-        holder.bind(count)
+        holder.bind(count, onFix)
     }
 
     override fun isSelectable(): Boolean = false
@@ -50,9 +51,11 @@ class MissingChaptersItem(
         adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>,
     ) : FlexibleViewHolder(view, adapter) {
         private val text: TextView = view.findViewById(R.id.missing_chapters_text)
+        private val fix: View = view.findViewById(R.id.action_fix_missing_chapters)
 
-        fun bind(count: Int) {
+        fun bind(count: Int, onFix: () -> Unit) {
             text.text = itemView.resources.getQuantityString(R.plurals.missing_chapters, count, count)
+            fix.setOnClickListener { onFix() }
         }
     }
 }

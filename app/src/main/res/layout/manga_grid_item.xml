@@ -81,6 +81,25 @@
                     app:layout_constraintBottom_toBottomOf="@id/cover_thumbnail"
                     app:layout_constraintVertical_bias="0.0" />
 
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/personal_status_badge"
+                    style="?textAppearanceLabelSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="8dp"
+                    android:background="?attr/colorSurfaceContainer"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="?attr/colorOnSurface"
+                    android:visibility="gone"
+                    app:layout_constraintTop_toTopOf="@id/cover_thumbnail"
+                    app:layout_constraintEnd_toEndOf="@id/cover_thumbnail"
+                    tools:text="Dropped" />
+
             </androidx.constraintlayout.widget.ConstraintLayout>
 
             <FrameLayout

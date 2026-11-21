@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsAdapter
+import eu.kanade.tachiyomi.ui.manga.UnifiedChaptersDialog
 import eu.kanade.tachiyomi.util.view.groupEdges
 
 class ChapterItem(
@@ -17,6 +18,9 @@ class ChapterItem(
     val manga: Manga,
 ) : BaseChapterItem<ChapterHolder, AbstractHeaderItem<FlexibleViewHolder>>(chapter) {
     var isLocked = false
+
+    /** Ephemeral merged source routing; never persisted as a chapter row. */
+    internal var unifiedInfo: UnifiedChaptersDialog.NativeInfo? = null
 
     override fun getLayoutRes(): Int = R.layout.chapters_item
 

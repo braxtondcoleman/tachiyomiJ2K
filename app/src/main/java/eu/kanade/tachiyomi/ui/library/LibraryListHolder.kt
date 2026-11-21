@@ -8,6 +8,7 @@ import androidx.core.view.updateLayoutParams
 import coil.dispose
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.image.coil.loadManga
+import eu.kanade.tachiyomi.data.library.ReadingFeedback
 import eu.kanade.tachiyomi.databinding.MangaListItemBinding
 import eu.kanade.tachiyomi.util.lang.highlightText
 import eu.kanade.tachiyomi.util.system.dpToPx
@@ -107,12 +108,16 @@ class LibraryListHolder(
                 ).joinToString(", ")
             }
 
-        binding.subtitle.text = authorArtist.highlightText(item.filter, color)
+        val personalStatus = ReadingFeedback.get(item.manga).status?.label
+        val subtitleText = listOfNotNull(personalStatus, authorArtist.takeIf { it.isNotBlank() })
+            .joinToString(" · ")
+        binding.subtitle.text = subtitleText.highlightText(item.filter, color)
         binding.title.maxLines = 2
         binding.title.post {
             val hasAuthorInFilter =
                 item.filter.isNotBlank() && authorArtist.contains(item.filter, true)
-            binding.subtitle.isVisible = binding.title.lineCount <= 1 || hasAuthorInFilter
+            binding.subtitle.isVisible = subtitleText.isNotBlank() &&
+                (binding.title.lineCount <= 1 || hasAuthorInFilter)
             binding.title.maxLines = if (hasAuthorInFilter) 1 else 2
         }
 
